@@ -1,0 +1,9 @@
+# general — the shell you actually want. No offensive tooling.
+# Also the sane base to combine with another suite.
+tools = [
+  "git", "curl", "wget", "jq", "ripgrep", "fd", "tree", "file", "which", "less",
+  "gnugrep", "gnused", "gawk", "findutils", "diffutils",
+  "unzip", "gzip", "p7zip", "rsync", "openssh",
+  "vim", "tmux", "htop", "python3",
+  "iproute2", "iputils", "dnsutils", "whois", "openssl", "socat", "netcat-gnu",
+]

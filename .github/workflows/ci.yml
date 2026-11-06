@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test ./...
+      - name: cross-compile
+        run: |
+          for arch in amd64 arm64; do
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -o dist/spawn-linux-$arch .
+          done
+          ls -l dist/
+
+  # The shipped suites name ~100 nixpkgs attributes. Evaluation is what catches a
+  # renamed attribute, an unfree licence or an insecure package, and it downloads
+  # nothing -- so guard every suite on every push rather than finding out at `up`.
+  # Resolve against nixpkgs directly: W0.6 used a third-party aggregator and got
+  # 6 of 34 answers wrong in both directions.
+  suites:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - run: go build -o spawn .
+      - name: every suite evaluates with no licence opt-in
+        run: |
+          fail=0
+          for p in $(./spawn profiles | awk '{print $1}'); do
+            printf 'schema = 1\nname = "%s"\nprofiles = ["%s"]\n' "$p" "$p" > /tmp/$p.toml
+            ./spawn check /tmp/$p.toml || fail=1
+          done
+          exit $fail

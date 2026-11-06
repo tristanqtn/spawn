@@ -1,0 +1,9 @@
+# web — web application testing.
+# burpsuite and wpscan are deliberately absent: both are unfree, and an unfree package
+# in a default suite would break every build until the manifest can opt in (M2).
+tools = [
+  "ffuf", "feroxbuster", "gobuster", "dirb", "wfuzz",
+  "sqlmap", "nuclei", "nikto", "whatweb", "dalfox", "arjun",
+  "httpx", "katana", "subfinder", "amass",
+  "httpie", "zap",
+]

@@ -1,0 +1,13 @@
+# active-directory — the Exegol AD workflow.
+# bloodhound-ce needs neo4j running alongside it: both are here, and they run as
+# services inside the one env (see the "one env = one container" decision).
+# Attribute names are the ones W0.5 measured as resolving, not the obvious guesses:
+# python3Packages.impacket (not impacket), certipy (not certipy-ad), samba for smbclient.
+tools = [
+  "netexec", "python3Packages.impacket", "enum4linux-ng", "ldapdomaindump", "ldapvi",
+  "bloodhound-ce", "bloodhound-py", "neo4j",
+  "responder", "mitm6", "pretender", "adidnsdump",
+  "certipy", "kerbrute", "evil-winrm", "krb5", "samba",
+  "john", "hashcat", "thc-hydra",
+  "nmap",
+]

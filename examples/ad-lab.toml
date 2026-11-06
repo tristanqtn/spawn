@@ -1,0 +1,5 @@
+# A pentest box: the AD suite plus a usable shell.
+schema = 1
+name = "ad-lab"
+profiles = ["general", "active-directory"]
+tools = ["masscan", "seclists"]

@@ -1,0 +1,10 @@
+# ctf — reversing, pwn, stego and crypto.
+tools = [
+  "python3Packages.pwntools", "gdb", "radare2", "rizin", "ghidra",
+  "binutils", "elfutils", "patchelf", "nasm", "checksec", "upx", "xxd",
+  "ltrace", "strace",
+  "binwalk", "foremost", "steghide", "stegseek", "exiftool", "zbar",
+  "python3Packages.sympy", "python3Packages.gmpy2", "python3Packages.pycryptodome",
+  "john", "hashcat",
+  "p7zip", "unrar-free",
+]
