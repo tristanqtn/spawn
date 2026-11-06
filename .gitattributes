@@ -1,0 +1,4 @@
+# This repo is built and run on Linux/WSL2 from a Windows working copy, and the global
+# core.autocrlf would otherwise rewrite shell scripts and Go sources to CRLF on
+# checkout. A CRLF shell script fails with errors that name nothing useful.
+* text=auto eol=lf
