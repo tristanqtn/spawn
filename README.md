@@ -44,7 +44,9 @@ and `cpu.max` are set inside the env). `io` is not delegated there, so there is 
 `limits.io`.
 
 ```
-spawn up            # build an env and enter it (reuses it if it exists)
+spawn up            # build ./spawn.toml and enter it
+spawn up lab.toml   # ...or a manifest by path
+spawn up lab        # ...or an env you already have, from any directory
 spawn check         # evaluate the manifest, download nothing
 spawn ls            # list envs
 spawn stop <name>   # stop an env, keeping its rootfs
@@ -80,6 +82,16 @@ in three shell dialects — which is also why spawn needs no CLI framework.
 like it worked. Rootless podman refuses to run under `sg`/`newgrp` with an error that
 only mentions `newuidmap`. Every check ends in the manifest field or host action that
 fixes it, rather than just saying something is broken.
+
+`spawn up <name>` is how you get back into a running box without hunting for its
+manifest: the container records where that manifest is, so spawn re-reads it, rebuilds
+if it changed, and drops you in. Tab-completion offers env names and local manifests
+together. If the manifest has moved or been deleted the env is still perfectly usable,
+so spawn attaches using the profile recorded on the container rather than refusing —
+that path needs no nix build at all, which also makes it the quick way in.
+
+An env name only wins when an env by that name exists, so `spawn up ls` runs `ls` in the
+default env unless you happen to have an env called `ls`.
 
 An env outlives the shell you entered it from, so `spawn up` twice puts you back in the
 same box. The manifest stays the source of truth: change it and the container is

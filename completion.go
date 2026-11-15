@@ -17,7 +17,7 @@ import (
 )
 
 var commands = map[string]string{
-	"up":         "build an env and enter it",
+	"up":         "build an env and enter it, by manifest or by name",
 	"check":      "evaluate a manifest without building",
 	"ls":         "list envs",
 	"stop":       "stop an env, keeping its rootfs",
@@ -127,10 +127,16 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return []string{"bash:bash completion script", "zsh:zsh completion script", "fish:fish completion script"}
-	case "up", "check", "doctor":
-		// A manifest path, which the shell completes better than spawn can; offering
-		// the local ones is still a convenience.
-		if len(words) > 1 && words[0] != "up" {
+	case "up":
+		// `spawn up` takes a manifest or the name of an existing env, so offer both.
+		// Past the first argument everything is a command for inside the env, which
+		// the shell's default completion handles better than spawn could.
+		if len(words) > 1 {
+			return nil
+		}
+		return append(envNames(""), manifestsHere()...)
+	case "check", "doctor":
+		if len(words) > 1 {
 			return nil
 		}
 		return manifestsHere()
@@ -200,6 +206,7 @@ func printUsage() {
   profiles = ["general", "web"]
   EOF
   spawn up          # build it and get a shell
+  spawn up lab      # re-enter that env from anywhere
   spawn ls          # see it running
   spawn rm lab      # throw it away`))
 	fmt.Println()

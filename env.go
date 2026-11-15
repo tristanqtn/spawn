@@ -128,7 +128,9 @@ func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error
 		"--label", "spawn.name=" + m.Name,
 		"--label", "spawn.profile=" + prof,
 		"--label", "spawn.manifest=" + manifestPath,
-		"--label", "spawn.config=" + fp}, args...)
+		"--label", "spawn.config=" + fp,
+		// Recorded so `spawn up <name>` can attach without the manifest.
+		"--label", "spawn.shell=" + m.shellBin(prof)}, args...)
 	return full, fp, nil
 }
 

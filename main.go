@@ -313,6 +313,16 @@ func load(path string) *Manifest {
 	return m
 }
 
+// absPath makes a manifest path absolute, since it is recorded on the container and
+// has to still mean something from another directory.
+func absPath(p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return p
+	}
+	return abs
+}
+
 func die(err error) {
 	fmt.Fprintln(os.Stderr, "spawn:", err)
 	os.Exit(1)
@@ -397,12 +407,7 @@ func main() {
 		if err := requireDeps(depNix, depPodman); err != nil {
 			die(err)
 		}
-		path, rest := manifestArg(args)
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			die(err)
-		}
-		if err := up(load(path), abs, rest); err != nil {
+		if err := upTarget(resolveTarget(args)); err != nil {
 			die(err)
 		}
 	case "doctor":
