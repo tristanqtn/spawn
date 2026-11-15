@@ -69,6 +69,9 @@ type Manifest struct {
 	Ports   []string          `toml:"ports"`
 	Caps    []string          `toml:"caps"`
 	Devices []string          `toml:"devices"`
+	// Egress policy and the VPN. See network.go and vpn.go.
+	Network networkConfig `toml:"network"`
+	VPN     vpnConfig     `toml:"vpn"`
 	// The generated shell. See shell.go.
 	Shell shellConfig `toml:"shell"`
 	// Config files copied into the env, writable, so a tool that rewrites its own
@@ -194,6 +197,11 @@ func Parse(b []byte) (*Manifest, error) {
 	for _, t := range m.Shell.packages() {
 		add(t)
 	}
+	// Same reasoning for the network: forgetting nftables would silently disable
+	// the kill switch, which is the worst possible way for this to fail.
+	for _, t := range m.networkPackages() {
+		add(t)
+	}
 	// permittedInsecurePackages entries are versioned names like "bloodhound-4.3.1".
 	// nixStrings quotes them, so this is shape validation rather than the injection
 	// guard, but a typo here fails late and confusingly otherwise.
@@ -214,6 +222,14 @@ func Parse(b []byte) (*Manifest, error) {
 	if err := m.validateShell(); err != nil {
 		return nil, err
 	}
+	if err := m.validateNetwork(); err != nil {
+		return nil, err
+	}
+	// The tunnel and the firewall need privileges spawn knows about, so it adds
+	// them; `spawn check` prints the effective set so they stay visible.
+	nc, nd := m.networkCaps()
+	m.Caps = dedupeAppend(m.Caps, nc...)
+	m.Devices = dedupeAppend(m.Devices, nd...)
 	// Persisted history needs somewhere persistent to live, so [shell] adds it
 	// rather than making the user wire up a persist entry by hand.
 	if m.Shell.persistHistory() && m.shadowedBy(historyDir) == "" {
@@ -483,4 +499,19 @@ func listProfiles() error {
 	}
 	t.print()
 	return nil
+}
+
+// dedupeAppend adds values not already present, preserving order.
+func dedupeAppend(dst []string, add ...string) []string {
+	seen := map[string]bool{}
+	for _, d := range dst {
+		seen[d] = true
+	}
+	for _, a := range add {
+		if !seen[a] {
+			seen[a] = true
+			dst = append(dst, a)
+		}
+	}
+	return dst
 }

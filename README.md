@@ -263,6 +263,61 @@ There is no base image, so there is no `/etc/passwd` either — and without it e
 login shell since `/bin/bash` does not exist. Declare any of those in `files` to
 override it.
 
+## VPN and the kill switch
+
+```toml
+[vpn]
+kind = "openvpn"              # or "wireguard"
+config = "secret:vpn"         # a secret handle, or ./lab.ovpn
+# kill_switch = true          # default
+# route_all  = true           # default
+
+[network]
+egress = "vpn"                # implied by [vpn]; also "deny" or "allow"
+allow  = ["10.10.0.0/16", "udp:53"]
+```
+
+Declaring `[vpn]` is enough: spawn adds openvpn or wireguard-tools, nftables and
+iproute2, plus `NET_ADMIN`, `NET_RAW` and `/dev/net/tun`, and turns the kill switch on.
+`spawn check` prints the effective privileges, so nothing is hidden.
+
+**The ordering is the safety property.** The default-drop ruleset is installed *before*
+the VPN client starts, because a kill switch applied afterwards leaks for the length of
+the handshake and leaks again every time the tunnel drops. That is possible because
+nftables matches the output interface by *name*, so a rule can reference `tun0` before
+it exists.
+
+**The hole for the tunnel is a pinned IP.** spawn resolves the endpoint from the config
+on the host, before any rule is applied, and allows exactly that address and port. No
+DNS has to be permitted out of the env — DNS escaping the tunnel is the classic leak a
+kill switch is supposed to prevent. With `egress = "vpn"` the host resolver is
+unreachable by design; use `vpn.dns` for a resolver that lives inside the tunnel.
+
+`kill_switch` and `route_all` are separate guarantees: the switch stops traffic leaving
+by any other route, `route_all` makes traffic actually *use* the tunnel. With the switch
+on and no default route through the tunnel an env is simply offline — safe, but rarely
+what was wanted.
+
+### The leak test
+
+`TestEgressPolicyBlocksAndPermits` and `TestKillSwitchHoldsWithNoTunnel` are the
+milestone's deliverable, not a nicety. The difficult part is not blocking traffic but
+proving the *policy* blocked it: a packet can also fail for want of a route, a dead
+tunnel or an unreachable peer, and any of those makes a broken kill switch look like a
+working one. So every assertion is paired with the nftables drop counter:
+
+```
+deny mode, internet            blocked, counter 1 -> 6   (nftables dropped it)
+deny + allow = ["1.1.1.1"]     1.1.1.1 REACHED, 8.8.8.8 blocked
+kill switch, forced out tap0   blocked, counter 0 -> 5
+tunnel-bound traffic           counter unchanged, so accepted
+tunnel never came up           sealed, nothing egresses
+```
+
+The positive cases use `egress = "deny"`, which leaves a working default route in place
+so the rule is the only thing that can stop a packet. That mode is also M4's agent
+sandbox, which is why they share one engine.
+
 ## Secrets
 
 A secret is referenced by path to an **encrypted** file. spawn decrypts it into a tmpfs

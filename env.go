@@ -196,8 +196,18 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	if err := m.seedFiles(filepath.Dir(manifestPath)); err != nil {
 		return err
 	}
+	// The network files have to exist before the container starts, so the policy can
+	// go on at once rather than after something has had a chance to leak.
+	if err := m.seedNetwork(prof, filepath.Dir(manifestPath)); err != nil {
+		return err
+	}
 	if inspect(m.Name, "{{.State.Running}}") != "true" {
 		if _, err := podmanOut("start", cname(m.Name)); err != nil {
+			return err
+		}
+		// Policy and tunnel before any user hook, so a hook cannot be the thing
+		// that leaks.
+		if err := m.bringUpNetwork(prof); err != nil {
 			return err
 		}
 		if err := postStart(m, prof); err != nil {
