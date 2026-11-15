@@ -183,7 +183,10 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	// On every up, so that editing a host dotfile and re-running applies it -- even
 	// to an env already running, since the rootfs directory IS the container's
 	// filesystem. Base identity first, so a manifest can override any of it.
-	if err := seedBaseEtc(m.Name, prof); err != nil {
+	if err := seedBaseEtc(m.Name, m.shellBin(prof)); err != nil {
+		return err
+	}
+	if err := m.seedShell(prof); err != nil {
 		return err
 	}
 	if err := m.seedFiles(filepath.Dir(manifestPath)); err != nil {
@@ -199,7 +202,7 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	}
 	ex := []string{"exec", "-e", "PATH=" + prof + "/bin", "-w", "/root"}
 	if len(cmd) == 0 {
-		ex = append(ex, "-it", cname(m.Name), prof+"/bin/bash")
+		ex = append(ex, "-it", cname(m.Name), m.shellBin(prof))
 	} else {
 		// -i so a command can be piped into: `echo x | spawn up env.toml cat`.
 		// Without it podman does not attach stdin and the command reads EOF.

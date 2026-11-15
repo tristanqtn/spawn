@@ -87,29 +87,38 @@ func (m *Manifest) shadowedBy(path string) string {
 	return ""
 }
 
+// envRootfsPath maps a path inside the env to its real location on the host. This
+// works because --rootfs is a plain directory, which is what makes seeding files as
+// cheap as copying them.
+func envRootfsPath(name, inside string) string {
+	rel := strings.TrimPrefix(filepath.ToSlash(filepath.Clean(inside)), "/")
+	return filepath.Join(envDir(name), "rootfs", filepath.FromSlash(rel))
+}
+
 // seedBaseEtc writes the identity files glibc expects. There is no base image, so
 // nothing else provides them, and without /etc/passwd any getpwuid() call fails:
 //
 //	zsh: can't drop privileges; failed to get user information for uid 0
 //
 // ssh refuses to run, tmux cannot find a login shell, and git cannot guess an author.
-// The shell is the profile's bash, since /bin/bash does not exist either; that is why
-// this is rewritten on every up rather than only at create.
+// The login shell is the one [shell] chose, resolved in the profile, since /bin/bash
+// does not exist either; that is why this is rewritten on every up rather than only
+// at create.
 //
 // A manifest may override any of these by declaring it in files, because the user's
 // declaration is seeded afterwards and wins.
-func seedBaseEtc(name, prof string) error {
+func seedBaseEtc(name, loginShell string) error {
 	etc := filepath.Join(envDir(name), "rootfs", "etc")
 	if err := os.MkdirAll(etc, 0o755); err != nil {
 		return err
 	}
 	base := map[string]string{
-		"passwd": "root:x:0:0:root:/root:" + prof + "/bin/bash\n" +
+		"passwd": "root:x:0:0:root:/root:" + loginShell + "\n" +
 			"nobody:x:65534:65534:nobody:/:/sbin/nologin\n",
 		"group": "root:x:0:\nnogroup:x:65534:\n",
 		// glibc needs this to resolve users from files at all.
 		"nsswitch.conf": "passwd: files\ngroup: files\nshadow: files\nhosts: files dns\n",
-		"shells":        prof + "/bin/bash\n",
+		"shells":        loginShell + "\n",
 	}
 	for f, content := range base {
 		if _, err := writeIfChanged(filepath.Join(etc, f), []byte(content), 0o644); err != nil {
@@ -129,7 +138,6 @@ func (m *Manifest) seedFiles(manifestDir string) error {
 	if len(m.Files) == 0 {
 		return nil
 	}
-	root := filepath.Join(envDir(m.Name), "rootfs")
 	changed := 0
 	for _, path := range sortedFileKeys(m.Files) {
 		spec := m.Files[path]
@@ -137,7 +145,7 @@ func (m *Manifest) seedFiles(manifestDir string) error {
 		if err != nil {
 			return err
 		}
-		dst := filepath.Join(root, filepath.FromSlash(strings.TrimPrefix(filepath.ToSlash(filepath.Clean(path)), "/")))
+		dst := envRootfsPath(m.Name, path)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			return err
 		}

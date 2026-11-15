@@ -67,6 +67,8 @@ type Manifest struct {
 	Ports   []string          `toml:"ports"`
 	Caps    []string          `toml:"caps"`
 	Devices []string          `toml:"devices"`
+	// The generated shell. See shell.go.
+	Shell shellConfig `toml:"shell"`
 	// Config files copied into the env, writable, so a tool that rewrites its own
 	// config works. Keyed by the path inside the env. See files.go.
 	Files map[string]fileSpec `toml:"files"`
@@ -185,6 +187,11 @@ func Parse(b []byte) (*Manifest, error) {
 			return nil, err
 		}
 	}
+	// [shell] implies its own packages: declaring shell.use = "zsh" and then having
+	// to remember to add zsh to tools would be a trap.
+	for _, t := range m.Shell.packages() {
+		add(t)
+	}
 	// permittedInsecurePackages entries are versioned names like "bloodhound-4.3.1".
 	// nixStrings quotes them, so this is shape validation rather than the injection
 	// guard, but a typo here fails late and confusingly otherwise.
@@ -201,6 +208,14 @@ func Parse(b []byte) (*Manifest, error) {
 	}
 	if err := m.validateFiles(); err != nil {
 		return nil, err
+	}
+	if err := m.validateShell(); err != nil {
+		return nil, err
+	}
+	// Persisted history needs somewhere persistent to live, so [shell] adds it
+	// rather than making the user wire up a persist entry by hand.
+	if m.Shell.persistHistory() && m.shadowedBy(historyDir) == "" {
+		m.Persist = append(m.Persist, historyDir)
 	}
 	return &m, nil
 }

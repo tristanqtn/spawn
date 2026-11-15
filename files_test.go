@@ -107,7 +107,7 @@ func TestCopyTreeKeepsExecutableBitAndSkipsSymlinks(t *testing.T) {
 // There is no base image, so spawn is the only thing that can provide it.
 func TestSeedBaseEtcProvidesIdentity(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	const prof = "/nix/store/fake-profile"
+	const prof = "/nix/store/fake-profile/bin/bash"
 	if err := seedBaseEtc("etctest", prof); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestSeedBaseEtcProvidesIdentity(t *testing.T) {
 		t.Errorf("uid 0 has no entry:\n%s", passwd)
 	}
 	// /bin/bash does not exist in an env, so the shell must be the profile's.
-	if !strings.Contains(string(passwd), prof+"/bin/bash") {
+	if !strings.Contains(string(passwd), prof) {
 		t.Errorf("login shell is not the profile's bash:\n%s", passwd)
 	}
 	if ns, _ := os.ReadFile(filepath.Join(etc, "nsswitch.conf")); !strings.Contains(string(ns), "passwd: files") {

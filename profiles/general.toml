@@ -1,11 +1,37 @@
-# general — the shell you actually want. No offensive tooling.
+# general — a shell you would actually choose to live in. No offensive tooling.
 # Also the sane base to combine with another suite.
-description = "a usable shell: git, ripgrep, jq, python3, net tools"
+#
+# Pair it with [shell] in the manifest: spawn wires up fzf, zoxide, direnv and
+# starship automatically when they are present, so none of it needs configuring
+# by hand.
+description = "a shell you'd choose to live in: fzf, eza, zoxide, starship, tmux"
 
 tools = [
-  "git", "curl", "wget", "jq", "ripgrep", "fd", "tree", "file", "which", "less",
-  "gnugrep", "gnused", "gawk", "findutils", "diffutils",
-  "unzip", "gzip", "p7zip", "rsync", "openssh",
-  "vim", "tmux", "htop", "python3",
+  # the shell itself
+  "bashInteractive", "zsh", "zsh-completions", "zsh-autosuggestions",
+  "zsh-syntax-highlighting", "nix-zsh-completions", "bash-completion",
+  "starship", "tmux", "direnv",
+
+  # moving around and finding things
+  "fzf", "zoxide", "ripgrep", "fd", "eza", "tree", "ncdu", "duf",
+
+  # reading things
+  "bat", "jq", "yq-go", "less", "file", "hexyl", "difftastic", "moreutils",
+
+  # editing
+  "neovim", "vim",
+
+  # the classics, because muscle memory matters
+  "git", "curl", "wget", "which", "gnugrep", "gnused", "gawk", "findutils",
+  "diffutils", "gnumake", "unzip", "gzip", "p7zip", "rsync", "openssh",
+
+  # watching
+  "btop", "procs", "htop",
+
+  # networking
   "iproute2", "iputils", "dnsutils", "whois", "openssl", "socat", "netcat-gnu",
+  "xh", "gping",
+
+  # scripting
+  "python3", "tealdeer", "man-pages",
 ]

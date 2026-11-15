@@ -114,9 +114,43 @@ These are manifest fields rather than an environment variable spawn sets for you
 because allowing unfree or known-vulnerable code is your decision and should be visible
 when someone reads the file.
 
+## A shell you'd choose to live in
+
+The `general` suite ships fzf, zoxide, eza, bat, starship, tmux, neovim, btop, direnv
+and the rest. `[shell]` wires them together so you do not paste the same six
+`eval "$(... init zsh)"` lines into every manifest:
+
+```toml
+[shell]
+use = "zsh"              # bash (default) or zsh
+prompt = "starship"      # plain (default) or starship
+history = true           # default when [shell] is present; see below
+aliases = { ll = "eza -l --git", lt = "eza --tree --level=2", v = "nvim", cat = "bat -p" }
+init = '''
+export EDITOR=nvim
+bindkey -e
+'''
+```
+
+That generates `~/.zshrc` with starship, zoxide, direnv, fzf key bindings and
+completion, zsh autosuggestions and syntax highlighting in the right order, history
+settings, your aliases, then `init` last so it can override anything above it.
+
+**Integrations are not a list you maintain.** spawn already knows every package in the
+env, so each one is wired up when its tool is present and left out entirely when it is
+not — change `tools` and the rc follows.
+
+`[shell]` also pulls in what it implies: `use = "zsh"` adds zsh, `prompt = "starship"`
+adds starship. And because history has to live somewhere that survives, `history = true`
+adds `/root/.local/state` to `persist` and points `HISTFILE` at it. `spawn check` shows
+both, so neither is a surprise.
+
+Want your own config instead? Declare the rc path in `files` and it replaces the
+generated one wholesale — `[shell]` is a convenience, not a gate.
+
 ## Configuring the tools, not just installing them
 
-Installing `fzf`, `tmux` and `zsh` is the easy half. `files` declares their config:
+For a config you already own, `files` declares it:
 
 ```toml
 [files]
@@ -140,6 +174,9 @@ alias ls=eza
 bind-mounted dotfile is read-only, so every tool that rewrites its own config breaks —
 neovim writing `lazy-lock.json`, `gh` writing `hosts.yml`, `bat` building a cache. A
 copied file is a real, writable file.
+
+Order of precedence, loosest to tightest: spawn's `/etc` identity files, then the
+`[shell]`-generated rc, then `files`. Yours always wins.
 
 It works because `--rootfs` is a plain host directory, so seeding a file into an env is
 ordinary file copying — no podman involved, and it applies to a **running** env.

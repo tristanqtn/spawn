@@ -148,10 +148,69 @@ func resolveHostPath(p, manifestDir string) (string, error) {
 	return filepath.ToSlash(filepath.Clean(p)), nil
 }
 
-// validateHostPaths checks the things that depend on this host rather than on the
-// manifest alone. It runs before the nix build: discovering a typo'd mount path after
-// waiting for a multi-gigabyte download is a bad trade for the user.
+// validateHostPaths checks EVERYTHING that depends on this host rather than on the
+// manifest alone, and runs before the nix build. A profile can be gigabytes; finding
+// out afterwards that a secret or a dotfile is missing throws that download away.
+//
+// Anything added here must be cheap and must not need the build's output. Decrypting
+// a secret needs age from the pinned nixpkgs, so only the inputs are checked now --
+// the encrypted file and the identity -- which is what a typo actually gets wrong.
 func (m *Manifest) validateHostPaths(manifestDir string) error {
+	if err := m.validateMountsAndDevices(manifestDir); err != nil {
+		return err
+	}
+	if err := m.validateSecretSources(manifestDir); err != nil {
+		return err
+	}
+	return m.validateFileSources(manifestDir)
+}
+
+// validateSecretSources checks each encrypted file and the identity needed to open it.
+func (m *Manifest) validateSecretSources(manifestDir string) error {
+	secs, err := m.secretList()
+	if err != nil {
+		return err
+	}
+	needAge := false
+	for _, s := range secs {
+		src, err := resolveHostPath(s.path, manifestDir)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(src); err != nil {
+			return fmt.Errorf("secret %q: %s does not exist", s.name, src)
+		}
+		if s.kind == "age" {
+			needAge = true
+		}
+	}
+	if needAge {
+		if _, err := ageIdentity(); err != nil {
+			return fmt.Errorf("secrets: %w", err)
+		}
+	}
+	return nil
+}
+
+// validateFileSources checks every `files` entry that copies from the host.
+func (m *Manifest) validateFileSources(manifestDir string) error {
+	for _, path := range sortedFileKeys(m.Files) {
+		spec := m.Files[path]
+		if spec.From == "" {
+			continue
+		}
+		src, err := resolveHostPath(spec.From, manifestDir)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(src); err != nil {
+			return fmt.Errorf("files: %q: %s does not exist", path, src)
+		}
+	}
+	return nil
+}
+
+func (m *Manifest) validateMountsAndDevices(manifestDir string) error {
 	for _, spec := range m.Mounts {
 		host, _, err := splitMount(spec)
 		if err != nil {
