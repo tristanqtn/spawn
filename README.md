@@ -51,7 +51,24 @@ spawn stop <name>   # stop an env, keeping its rootfs
 spawn rm <name>     # destroy an env and its rootfs
 spawn doctor        # check this host, and a manifest against it
 spawn profiles      # list the built-in suites
+spawn completion    # print a shell completion script
 ```
+
+Run `spawn` with no arguments for the help screen.
+
+## Shell completion
+
+```
+spawn completion bash > /etc/bash_completion.d/spawn
+spawn completion zsh  > "${fpath[1]}/_spawn"
+spawn completion fish > ~/.config/fish/completions/spawn.fish
+```
+
+Completion is **dynamic**: `spawn stop <tab>` offers only running envs, `spawn rm <tab>`
+offers every env plus `--purge`, and `spawn up <tab>` offers the manifests in the
+current directory. Each script is a few lines that delegate to a hidden
+`spawn __complete`, so the candidate logic lives in Go once instead of being rewritten
+in three shell dialects — which is also why spawn needs no CLI framework.
 
 `spawn doctor` exists because the failures here name nothing useful. Without `NET_RAW`,
 `ping` fails *at exec* with `Operation not permitted` and `nmap` dies with

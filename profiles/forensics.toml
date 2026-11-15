@@ -4,6 +4,8 @@
 # 'vol-sl' licence) and nothing free replaces it, so it would break every build of
 # this suite until a manifest can opt in to unfree packages (M2). avml covers
 # acquisition; add volatility3 by hand once the opt-in field exists.
+description = "disk and artefact analysis: sleuthkit, autopsy, yara"
+
 tools = [
   "sleuthkit", "autopsy", "libewf", "afflib", "dc3dd", "ddrescue",
   "avml",

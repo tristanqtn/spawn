@@ -22,6 +22,9 @@ import (
 
 const schemaVersion = 1
 
+// version is stamped by the release build; "dev" when built from a working copy.
+var version = "dev"
+
 // A revision, never a branch: "nixos-unstable" would resolve to something different
 // next month, and rebuilding identically months later is the whole point. This
 // constant IS the lock -- it moves when spawn is upgraded, not when nixpkgs is, so a
@@ -103,13 +106,30 @@ func profileTools(name string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("no such profile %q (have: %s)", name, strings.Join(profileNames(), ", "))
 	}
-	var p struct {
-		Tools []string `toml:"tools"`
-	}
+	var p profileFile
 	if err := toml.Unmarshal(b, &p); err != nil {
 		return nil, fmt.Errorf("profile %q: %w", name, err)
 	}
 	return p.Tools, nil
+}
+
+// profileFile is a shipped suite: a tool list plus one line saying what it is for,
+// so `spawn profiles` can be read without opening the repository.
+type profileFile struct {
+	Description string   `toml:"description"`
+	Tools       []string `toml:"tools"`
+}
+
+func profileDescription(name string) (string, error) {
+	b, err := profileFS.ReadFile("profiles/" + name + ".toml")
+	if err != nil {
+		return "", err
+	}
+	var p profileFile
+	if err := toml.Unmarshal(b, &p); err != nil {
+		return "", err
+	}
+	return p.Description, nil
 }
 
 func Parse(b []byte) (*Manifest, error) {
@@ -247,14 +267,6 @@ func (m *Manifest) check() (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-const usage = `usage: spawn up    [manifest.toml] [cmd...]   build an env and enter it
-       spawn check [manifest.toml]           evaluate it, download nothing
-       spawn ls                              list envs
-       spawn stop <name>                     stop an env, keeping its rootfs
-       spawn rm [--purge] <name>             destroy an env; --purge drops persisted data
-       spawn doctor [manifest.toml]          check this host, and the manifest on it
-       spawn profiles                        list the built-in suites`
-
 // manifestArg pulls an optional manifest path off the front of the args.
 func manifestArg(args []string) (string, []string) {
 	if len(args) > 0 && strings.HasSuffix(args[0], ".toml") {
@@ -291,18 +303,30 @@ func arg1(args []string, cmd string) string {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, usage)
-		os.Exit(2)
+		printUsage()
+		return
 	}
 	args := os.Args[2:]
 	switch os.Args[1] {
+	case "help", "-h", "--help":
+		printUsage()
+	case "version", "--version":
+		fmt.Printf("spawn %s, nixpkgs %s\n", version, shortRev(defaultNixpkgs))
+	case "completion":
+		if len(args) != 1 {
+			die(fmt.Errorf("usage: spawn completion bash|zsh|fish"))
+		}
+		script, err := completionScript(args[0])
+		if err != nil {
+			die(err)
+		}
+		fmt.Print(script)
+	case "__complete":
+		// Hidden: this is what the shell completion scripts call.
+		complete(args)
 	case "profiles":
-		for _, n := range profileNames() {
-			ts, err := profileTools(n)
-			if err != nil {
-				die(err)
-			}
-			fmt.Printf("%-18s %d tools\n", n, len(ts))
+		if err := listProfiles(); err != nil {
+			die(err)
 		}
 	case "check":
 		path, _ := manifestArg(args)
@@ -311,7 +335,22 @@ func main() {
 		if err != nil {
 			die(fmt.Errorf("%s does not evaluate:\n%s", path, err))
 		}
-		fmt.Printf("%s: %d packages ok -> %s\n", m.Name, len(m.resolved), drv)
+		t := newTable()
+		t.add("env", ui.paint(ui.bold, m.Name))
+		if len(m.Profiles) > 0 {
+			t.add("suites", strings.Join(m.Profiles, ", "))
+		}
+		t.add("packages", fmt.Sprint(len(m.resolved)))
+		t.add("nixpkgs", shortRev(m.Nixpkgs))
+		if len(m.Secrets) > 0 {
+			t.add("secrets", strings.Join(sortedKeys(m.Secrets), ", "))
+		}
+		if len(m.Persist) > 0 {
+			t.add("persist", strings.Join(m.Persist, ", "))
+		}
+		t.add("derivation", ui.paint(ui.dim, drv))
+		t.print()
+		fmt.Println(ui.paint(ui.green, "evaluates; nothing was downloaded"))
 	case "up":
 		path, rest := manifestArg(args)
 		abs, err := filepath.Abs(path)
@@ -347,7 +386,27 @@ func main() {
 			die(err)
 		}
 	default:
-		fmt.Fprintf(os.Stderr, "spawn: unknown command %q\n%s\n", os.Args[1], usage)
+		fmt.Fprintf(os.Stderr, "spawn: unknown command %q\n\n", os.Args[1])
+		printUsage()
 		os.Exit(2)
 	}
+}
+
+// listProfiles shows the built-in suites with what each is for, so choosing one does
+// not require opening the repository.
+func listProfiles() error {
+	t := newTable("SUITE", "TOOLS", "FOR")
+	for _, n := range profileNames() {
+		ts, err := profileTools(n)
+		if err != nil {
+			return err
+		}
+		d, err := profileDescription(n)
+		if err != nil {
+			return err
+		}
+		t.add(n, fmt.Sprint(len(ts)), ui.paint(ui.dim, d))
+	}
+	t.print()
+	return nil
 }

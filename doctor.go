@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 )
 
 type result int
@@ -146,15 +145,17 @@ func doctor(manifestPath string) error {
 		cs = append(cs, manifestChecks(manifestPath)...)
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	worst := ok
+	tb := newTable("", "CHECK", "DETAIL")
+	worst, counts := ok, map[result]int{}
 	for _, c := range cs {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", c.state, c.name, c.detail)
+		tb.add(c.state.badge(), c.name, c.detail)
+		counts[c.state]++
 		if c.state > worst {
 			worst = c.state
 		}
 	}
-	w.Flush()
+	tb.print()
+	fmt.Printf("\n%d ok, %d warn, %d failed\n", counts[ok], counts[warn], counts[bad])
 	if worst == bad {
 		return fmt.Errorf("at least one check failed")
 	}

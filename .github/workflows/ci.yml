@@ -17,8 +17,9 @@ jobs:
       - run: go test -short ./...
       - name: cross-compile
         run: |
+          v=$(git describe --tags --always --dirty 2>/dev/null || echo dev)
           for arch in amd64 arm64; do
-            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -o dist/spawn-linux-$arch .
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch               go build -ldflags "-s -w -X main.version=$v" -o dist/spawn-linux-$arch .
           done
           ls -l dist/
 

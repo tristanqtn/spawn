@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/tabwriter"
 )
 
 // A multi-user nix install puts its daemon socket here. The socket's DIRECTORY is
@@ -201,18 +200,40 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 
 func ls() error {
 	out, err := podmanOut("ps", "-a", "--filter", "label=spawn.name", "--format",
-		`{{index .Labels "spawn.name"}}`+"\t"+`{{.State}}`+"\t"+`{{.RunningFor}}`+"\t"+`{{index .Labels "spawn.manifest"}}`)
+		`{{index .Labels "spawn.name"}}`+"\t"+`{{.State}}`+"\t"+`{{.RunningFor}}`+"\t"+
+			`{{index .Labels "spawn.manifest"}}`)
 	if err != nil {
 		return err
 	}
 	if out == "" {
-		fmt.Println("no envs. spawn up ./spawn.toml")
+		fmt.Println(ui.paint(ui.dim, "no envs yet. Write a spawn.toml and run: spawn up"))
 		return nil
 	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "NAME\tSTATE\tAGE\tMANIFEST")
-	fmt.Fprintln(w, out)
-	return w.Flush()
+	t := newTable("NAME", "STATE", "AGE", "PERSIST", "MANIFEST")
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Split(line, "\t")
+		for len(f) < 4 {
+			f = append(f, "")
+		}
+		state := f[1]
+		switch state {
+		case "running":
+			state = ui.paint(ui.green, state)
+		case "exited", "created":
+			state = ui.paint(ui.dim, state)
+		default:
+			state = ui.paint(ui.yellow, state)
+		}
+		persist := ui.paint(ui.dim, "-")
+		if dirExists(persistDir(f[0])) {
+			persist = "yes"
+		}
+		// The manifest path is the least important column and the longest, so it is
+		// the one that gets shortened.
+		t.add(ui.paint(ui.bold, f[0]), state, f[2], persist, ui.paint(ui.dim, truncate(f[3], 44)))
+	}
+	t.print()
+	return nil
 }
 
 func stop(name string) error {

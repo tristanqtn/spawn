@@ -1,5 +1,7 @@
 # general — the shell you actually want. No offensive tooling.
 # Also the sane base to combine with another suite.
+description = "a usable shell: git, ripgrep, jq, python3, net tools"
+
 tools = [
   "git", "curl", "wget", "jq", "ripgrep", "fd", "tree", "file", "which", "less",
   "gnugrep", "gnused", "gawk", "findutils", "diffutils",

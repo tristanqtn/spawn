@@ -1,4 +1,6 @@
 # ctf — reversing, pwn, stego and crypto.
+description = "reversing, pwn, stego and crypto"
+
 tools = [
   "python3Packages.pwntools", "gdb", "radare2", "rizin", "ghidra",
   "binutils", "elfutils", "patchelf", "nasm", "checksec", "upx", "xxd",
