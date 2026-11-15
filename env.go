@@ -5,6 +5,8 @@ package main
 // container as labels, and `podman ps` is the source of truth.
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -66,19 +68,21 @@ func inspect(name, format string) string {
 	return out
 }
 
-func create(m *Manifest, prof, manifestPath string) error {
+// createArgs renders the whole podman create invocation, plus a fingerprint of it.
+// The fingerprint is what makes the manifest authoritative: a changed mount, port,
+// cap or limit has to replace the container just as a changed tool list does, and
+// comparing one hash is cheaper and more honest than comparing each field back out
+// of podman inspect.
+func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error) {
 	root := filepath.Join(envDir(m.Name), "rootfs")
 	// There is no base image, so the few directories podman and bash expect have to
 	// exist before the container can start.
 	for _, d := range []string{"etc", "root", "tmp"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
-			return err
+			return nil, "", err
 		}
 	}
-	args := []string{"create", "--name", cname(m.Name),
-		"--label", "spawn.name=" + m.Name,
-		"--label", "spawn.profile=" + prof,
-		"--label", "spawn.manifest=" + manifestPath,
+	args := []string{
 		// --rootfs is a boolean flag: the path is the first POSITIONAL arg, where an
 		// image name would go. Every flag must precede it.
 		"--rootfs",
@@ -98,33 +102,72 @@ func create(m *Manifest, prof, manifestPath string) error {
 	} else {
 		fmt.Fprintf(os.Stderr, "spawn: no nix daemon at %s, so nix inside the env is read-only\n", nixDaemonSocket)
 	}
+	rt, err := m.runtimeArgs(filepath.Dir(manifestPath))
+	if err != nil {
+		return nil, "", err
+	}
+	args = append(args, rt...)
 	// PID 1 just has to stay alive; every real command arrives via podman exec.
 	args = append(args, root, prof+"/bin/sleep", "infinity")
-	_, err := podmanOut(args...)
-	return err
+
+	sum := sha256.Sum256([]byte(strings.Join(args, "\x00")))
+	fp := hex.EncodeToString(sum[:])
+
+	full := append([]string{"create", "--name", cname(m.Name),
+		"--label", "spawn.name=" + m.Name,
+		"--label", "spawn.profile=" + prof,
+		"--label", "spawn.manifest=" + manifestPath,
+		"--label", "spawn.config=" + fp}, args...)
+	return full, fp, nil
+}
+
+// postStart runs the manifest's hooks inside the env, every time it starts, so a
+// started env always matches what the manifest declared.
+func postStart(m *Manifest, prof string) error {
+	for _, h := range m.Hooks.PostStart {
+		out, err := podmanOut("exec", "-e", "PATH="+prof+"/bin", "-w", "/root",
+			cname(m.Name), prof+"/bin/bash", "-lc", h)
+		if err != nil {
+			return fmt.Errorf("hooks.post_start %q: %w", h, err)
+		}
+		if out != "" {
+			fmt.Println(out)
+		}
+	}
+	return nil
 }
 
 func up(m *Manifest, manifestPath string, cmd []string) error {
+	if err := m.validateHostPaths(filepath.Dir(manifestPath)); err != nil {
+		return err
+	}
 	prof, err := m.build()
 	if err != nil {
 		return err
 	}
-	// The manifest is the source of truth. If it now resolves to a different closure,
+	args, fp, err := createArgs(m, prof, manifestPath)
+	if err != nil {
+		return err
+	}
+	// The manifest is the source of truth. If anything it declares has changed,
 	// replace the container; the rootfs directory is kept, so nothing the env wrote
 	// is lost.
-	if cur := inspect(m.Name, `{{index .Config.Labels "spawn.profile"}}`); cur != "" && cur != prof {
+	if cur := inspect(m.Name, `{{index .Config.Labels "spawn.config"}}`); cur != "" && cur != fp {
 		fmt.Fprintln(os.Stderr, "spawn: manifest changed, recreating the container (rootfs kept)")
 		if _, err := podmanOut("rm", "-f", cname(m.Name)); err != nil {
 			return err
 		}
 	}
 	if inspect(m.Name, "{{.Id}}") == "" {
-		if err := create(m, prof, manifestPath); err != nil {
+		if _, err := podmanOut(args...); err != nil {
 			return err
 		}
 	}
 	if inspect(m.Name, "{{.State.Running}}") != "true" {
 		if _, err := podmanOut("start", cname(m.Name)); err != nil {
+			return err
+		}
+		if err := postStart(m, prof); err != nil {
 			return err
 		}
 	}

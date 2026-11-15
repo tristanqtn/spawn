@@ -9,7 +9,34 @@ schema = 1
 name = "lab"
 profiles = ["general", "active-directory"]
 tools = ["masscan"]
+
+env     = { LAB = "htb" }
+mounts  = ["./loot:/loot", "~/.ssh:/root/.ssh:ro"]   # relative to THIS file
+ports   = ["127.0.0.1:18080:8080"]
+caps    = ["NET_ADMIN", "NET_RAW"]
+devices = ["/dev/net/tun"]
+
+[limits]
+cpus = "2"
+memory = "4g"
+pids = 512
+
+[hooks]
+post_start = ["echo ready > /root/.ready"]
 ```
+
+Change any of it and the next `spawn up` recreates the container to match, keeping the
+rootfs. Relative mount paths resolve against the manifest's own directory, not your
+working directory, so a manifest means the same thing wherever you run it from.
+
+`caps` and `devices` are first-class and visible on purpose. Omit `NET_RAW` and `ping`
+fails *at exec* with `Operation not permitted` while `nmap -sT` dies with
+`dnet: Failed to open device eth0` — neither error names the cause. The privilege an env
+holds is exactly what you want to be able to read off the file.
+
+Measured on WSL2: `cpus`, `memory` and `pids` all take effect (`memory.max`, `pids.max`
+and `cpu.max` are set inside the env). `io` is not delegated there, so there is no
+`limits.io`.
 
 ```
 spawn up            # build an env and enter it (reuses it if it exists)

@@ -54,6 +54,25 @@ type Manifest struct {
 	AllowUnfree   bool     `toml:"allow_unfree"`
 	AllowInsecure []string `toml:"allow_insecure"`
 
+	// Runtime surface. caps and devices are deliberately first-class and visible
+	// rather than hidden behind wrapper flags: without NET_RAW, ping fails at exec
+	// and nmap dies with "dnet: Failed to open device eth0", and neither error names
+	// the cause. The privilege an env holds is exactly what a user needs to reason
+	// about.
+	Env     map[string]string `toml:"env"`
+	Mounts  []string          `toml:"mounts"`
+	Ports   []string          `toml:"ports"`
+	Caps    []string          `toml:"caps"`
+	Devices []string          `toml:"devices"`
+	Limits  struct {
+		CPUs   string `toml:"cpus"`
+		Memory string `toml:"memory"`
+		PIDs   int    `toml:"pids"`
+	} `toml:"limits"`
+	Hooks struct {
+		PostStart []string `toml:"post_start"`
+	} `toml:"hooks"`
+
 	resolved []string // baseTools + every profile's tools + tools, deduplicated
 }
 
@@ -145,6 +164,9 @@ func Parse(b []byte) (*Manifest, error) {
 	}
 	if m.Nixpkgs == "" {
 		m.Nixpkgs = defaultNixpkgs
+	}
+	if err := m.validateRuntime(); err != nil {
+		return nil, err
 	}
 	return &m, nil
 }
