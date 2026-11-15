@@ -24,6 +24,7 @@ var commands = map[string]string{
 	"stop":       "stop an env, keeping its rootfs",
 	"rm":         "destroy an env and its rootfs",
 	"diff":       "show every file the env changed",
+	"audit":      "show which destinations the egress policy refused",
 	"snapshot":   "copy the env's filesystem aside",
 	"snapshots":  "list an env's snapshots",
 	"restore":    "put a snapshot back",
@@ -37,7 +38,7 @@ var commands = map[string]string{
 
 // commandOrder is the order the help screen uses: roughly the order a new user meets
 // them, not alphabetical.
-var commandOrder = []string{"init", "up", "ls", "stop", "rm", "diff", "snapshot",
+var commandOrder = []string{"init", "up", "ls", "stop", "rm", "diff", "audit", "snapshot",
 	"snapshots", "restore", "fork", "check", "doctor", "profiles", "completion",
 	"version", "help"}
 
@@ -122,7 +123,7 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return envNames("running")
-	case "diff", "snapshot", "snapshots", "fork":
+	case "diff", "audit", "snapshot", "snapshots", "fork":
 		if len(words) > 1 {
 			return nil
 		}

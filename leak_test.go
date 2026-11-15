@@ -251,3 +251,56 @@ func TestJoinedEnvsReachEachOther(t *testing.T) {
 		t.Errorf("envs on a shared network could not reach each other: %q (%v)", out, err)
 	}
 }
+
+// M4's audit criterion: an agent's attempt to reach the network has to be visible
+// afterwards. A counter cannot answer "what did it try to reach", so the policy keeps
+// a dynamic nftables set of refused destinations -- readable from the env, unlike the
+// kernel log that `nft log` would write to and that a rootless env cannot read.
+func TestAuditRecordsRefusedDestinations(t *testing.T) {
+	requireRuntime(t)
+	if !internetReachable(t) {
+		t.Skip("no outbound internet, so nothing would be attempted")
+	}
+
+	m, err := Parse([]byte("schema = 1\nname = \"spawnaudittest\"\n" + netTools +
+		"\n[network]\negress = \"deny\"\nallow = [\"1.1.1.1\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm(m.Name, true)
+	t.Cleanup(func() { rm(m.Name, true) })
+	if err := up(m, "/tmp/spawn-audit.toml", []string{"true"}); err != nil {
+		t.Fatal(err)
+	}
+	prof := inspect(m.Name, `{{index .Config.Labels "spawn.profile"}}`)
+
+	// Nothing attempted yet, so the audit must be empty rather than noisy.
+	if entries, err := auditEgress(m.Name, prof); err != nil {
+		t.Fatal(err)
+	} else if len(entries) != 0 {
+		t.Errorf("a fresh env already has audit entries: %+v", entries)
+	}
+
+	for _, target := range []string{"1.1.1.1:443", "8.8.8.8:443", "9.9.9.9:443"} {
+		reaches(t, m.Name, target, "")
+	}
+
+	entries, err := auditEgress(m.Name, prof)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, e := range entries {
+		seen[e.Addr] = true
+	}
+	for _, want := range []string{"8.8.8.8", "9.9.9.9"} {
+		if !seen[want] {
+			t.Errorf("the audit log did not record the refused destination %s: %+v", want, entries)
+		}
+	}
+	// The allowed destination must NOT appear: an audit that lists permitted traffic
+	// as refused is worse than none, because it trains you to ignore it.
+	if seen["1.1.1.1"] {
+		t.Error("the audit log recorded an ALLOWED destination as refused")
+	}
+}

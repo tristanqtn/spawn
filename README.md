@@ -352,6 +352,25 @@ The positive cases use `egress = "deny"`, which leaves a working default route i
 so the rule is the only thing that can stop a packet. That mode is also M4's agent
 sandbox, which is why they share one engine.
 
+### The egress audit log
+
+```
+$ spawn audit agent
+REFUSED DESTINATION  FORGOTTEN IN
+-------------------  ------------
+8.8.8.8              23h59m55s
+9.9.9.9              23h59m58s
+
+2 destination(s) refused by the egress policy
+```
+
+The policy keeps a dynamic nftables set of every destination it refused, so the question
+"what did the agent try to reach" has an answer. A counter cannot answer it, and
+`nft log` writes to the kernel log, which a rootless env cannot read — the set is
+readable from inside the env itself. Entries expire after 24h, so nothing has to prune
+it. Allowed destinations never appear: an audit that lists permitted traffic as refused
+trains you to ignore it.
+
 ### The datapath proof
 
 `test/vpn-datapath.sh` builds a real VPN server as a second env and pushes a payload

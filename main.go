@@ -472,6 +472,33 @@ func main() {
 		}
 		tb.print()
 		fmt.Printf("\n%d file(s) changed\n", len(ch))
+	case "audit":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
+		env := arg1(args, "audit")
+		prof := inspect(env, `{{index .Config.Labels "spawn.profile"}}`)
+		if prof == "" {
+			die(fmt.Errorf("no env named %q", env))
+		}
+		entries, err := auditEgress(env, prof)
+		if err != nil {
+			die(err)
+		}
+		if len(entries) == 0 {
+			fmt.Println(ui.paint(ui.dim, "nothing was refused: the env has not tried to reach a blocked address"))
+			break
+		}
+		tb := newTable("REFUSED DESTINATION", "FORGOTTEN IN")
+		for _, e := range entries {
+			exp := e.Expires
+			if exp == "" {
+				exp = "-"
+			}
+			tb.add(ui.paint(ui.red, e.Addr), ui.paint(ui.dim, exp))
+		}
+		tb.print()
+		fmt.Printf("\n%d destination(s) refused by the egress policy\n", len(entries))
 	case "snapshot":
 		if err := requireDeps(depPodman); err != nil {
 			die(err)
