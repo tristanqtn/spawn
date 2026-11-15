@@ -93,7 +93,9 @@ func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error
 		"-e", "SSL_CERT_FILE=" + certPath(prof),
 		"-e", "NIX_SSL_CERT_FILE=" + certPath(prof),
 		"-e", "NIX_CONFIG=experimental-features = nix-command flakes",
-		"-w", "/root"}
+		// The env's own name, so a prompt or a script can say which box it is in.
+		"-e", "SPAWN_ENV=" + m.Name,
+		"-w", m.workdir()}
 	if _, err := os.Stat(nixDaemonSocket); err == nil {
 		args = append(args,
 			"-v", nixDaemonSocket+":"+envDaemonSocket,
@@ -202,7 +204,7 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 			return err
 		}
 	}
-	ex := []string{"exec", "-e", "PATH=" + prof + "/bin", "-w", "/root"}
+	ex := []string{"exec", "-e", "PATH=" + prof + "/bin", "-w", m.workdir()}
 	if len(cmd) == 0 {
 		ex = append(ex, "-it", cname(m.Name), m.shellBin(prof))
 	} else {

@@ -1,0 +1,15 @@
+# git inside the env. Set your own name and email, or mount the host's ~/.gitconfig
+# instead with:  mounts = ["~/.gitconfig:/root/.gitconfig:ro"]
+[init]
+	defaultBranch = main
+[core]
+	pager = less -FRX
+[diff]
+	colorMoved = default
+	# difftastic is in the general suite.
+	external = difft
+[color]
+	ui = auto
+[alias]
+	s = status -sb
+	l = log --oneline --graph --decorate -20

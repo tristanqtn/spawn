@@ -1,0 +1,48 @@
+# The Exegol prompt, in Dracula. This file is yours: edit it.
+# Referenced from spawn.toml as /root/.config/starship.toml.
+"$schema" = "https://starship.rs/config-schema.json"
+add_newline = false
+palette = "dracula"
+
+# [Nov 15, 2026 - 18:45:06 (CET)] env-name /workspace #
+format = '''[\[](comment)[$time](purple)[\]](comment) [$env_var](green) $directory$git_branch$git_status$character'''
+
+[palettes.dracula]
+background = "#282a36"
+current = "#44475a"
+foreground = "#f8f8f2"
+comment = "#6272a4"
+cyan = "#8be9fd"
+green = "#50fa7b"
+orange = "#ffb86c"
+pink = "#ff79c6"
+purple = "#bd93f9"
+red = "#ff5555"
+yellow = "#f1fa8c"
+
+[time]
+disabled = false
+format = "$time"
+time_format = "%b %d, %Y - %H:%M:%S (%Z)"
+
+# SPAWN_ENV is set by spawn to the env's name, so the prompt says which box you are in.
+[env_var.SPAWN_ENV]
+format = "$env_value"
+style = "green bold"
+
+[directory]
+format = "[$path](cyan)[$read_only](red) "
+truncation_length = 0
+truncate_to_repo = false
+read_only = " ro"
+
+[git_branch]
+format = "[$symbol$branch](pink) "
+symbol = ""
+
+[git_status]
+format = "[$all_status$ahead_behind](yellow) "
+
+[character]
+success_symbol = "[#](foreground)"
+error_symbol = "[#](red)"

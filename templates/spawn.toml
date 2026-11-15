@@ -1,0 +1,52 @@
+# A spawn env, with its shell configured by the files in ./dotfiles.
+#
+# Everything here is yours to change. The dotfiles are real files, so edit them with
+# syntax highlighting, keep them in git, and re-run `spawn up` to apply -- it works on
+# a running env, so you can iterate without destroying anything.
+schema = 1
+name = "lab"
+profiles = ["general"]
+
+# Exegol puts you in /workspace; this is the same idea, mounted from the host so your
+# work survives the env entirely.
+workdir = "/workspace"
+mounts = ["./workspace:/workspace"]
+
+# Outlives `spawn rm`: loot, shell history, and tool state you would hate to re-earn.
+persist = ["/loot", "/root/.local/state"]
+
+[shell]
+use = "zsh"
+# "starship" uses ./dotfiles/starship.toml below. "exegol" uses spawn's built-in
+# Dracula copy of the Exegol prompt instead, with no file to edit.
+prompt = "starship"
+aliases = { ll = "eza -l --git --group-directories-first", lt = "eza --tree --level=2", l = "eza", v = "nvim", cat = "bat -p", g = "git", ports = "ss -tulpn" }
+init = '''
+# Anything you want verbatim, last, so it overrides everything generated above.
+export EDITOR=nvim
+bindkey -e
+
+# Dracula colours for fzf, matching the prompt.
+export FZF_DEFAULT_OPTS="
+  --color=fg:#f8f8f2,bg:#282a36,hl:#bd93f9
+  --color=fg+:#f8f8f2,bg+:#44475a,hl+:#bd93f9
+  --color=info:#ffb86c,prompt:#50fa7b,pointer:#ff79c6
+  --color=marker:#ff79c6,spinner:#ffb86c,header:#6272a4
+  --height=40% --layout=reverse --border"
+'''
+
+[files]
+"/root/.config/starship.toml" = { from = "./dotfiles/starship.toml" }
+"/root/.tmux.conf"            = { from = "./dotfiles/tmux.conf" }
+"/root/.config/bat/config"    = { from = "./dotfiles/bat.conf" }
+"/root/.gitconfig"            = { from = "./dotfiles/gitconfig" }
+"/root/.config/nvim"          = { from = "./dotfiles/nvim" }
+
+# Secrets are referenced, never stored. Uncomment once you have one:
+# [secrets]
+# vpn = "age:~/secrets/lab.ovpn.age"
+
+[limits]
+cpus = "4"
+memory = "8g"
+pids = 1024

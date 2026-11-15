@@ -125,6 +125,18 @@ func seedBaseEtc(name, loginShell string) error {
 			return fmt.Errorf("seeding /etc/%s: %w", f, err)
 		}
 	}
+	// Local time. Without this an env is UTC, and a prompt that shows a clock is
+	// quietly wrong by an hour or more.
+	if tz := hostLocaltime(); tz != nil {
+		if _, err := writeIfChanged(filepath.Join(etc, "localtime"), tz, 0o644); err != nil {
+			return fmt.Errorf("seeding /etc/localtime: %w", err)
+		}
+	}
+	if name := hostTimezone(); name != "" {
+		if _, err := writeIfChanged(filepath.Join(etc, "timezone"), []byte(name+"\n"), 0o644); err != nil {
+			return fmt.Errorf("seeding /etc/timezone: %w", err)
+		}
+	}
 	return nil
 }
 

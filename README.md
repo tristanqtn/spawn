@@ -44,6 +44,7 @@ and `cpu.max` are set inside the env). `io` is not delegated there, so there is 
 `limits.io`.
 
 ```
+spawn init          # write a configured manifest + editable dotfiles here
 spawn up            # build ./spawn.toml and enter it
 spawn up lab.toml   # ...or a manifest by path
 spawn up lab        # ...or an env you already have, from any directory
@@ -126,6 +127,57 @@ These are manifest fields rather than an environment variable spawn sets for you
 because allowing unfree or known-vulnerable code is your decision and should be visible
 when someone reads the file.
 
+## Starting from a template
+
+```
+spawn init
+```
+
+writes a working manifest and a set of **real dotfiles** next to it:
+
+```
+spawn.toml                   wired to everything below
+dotfiles/starship.toml       the Exegol prompt, in Dracula
+dotfiles/tmux.conf           Dracula status bar, sane bindings
+dotfiles/bat.conf            Dracula theme
+dotfiles/gitconfig           difftastic as the diff tool
+dotfiles/nvim/init.lua       no plugin manager, so it starts instantly
+workspace/                   mounted at /workspace
+```
+
+This is the Exegol *my-resources* idea, except the resources are files in **your**
+repository rather than a directory inside an image. Edit them, diff them, commit them.
+Re-run `spawn up` and the change lands in a **running** env, so you can iterate on the
+prompt or the tmux bar without rebuilding anything.
+
+`spawn init` never overwrites a file you have edited; `--force` restores the shipped
+version.
+
+### The prompt
+
+The template reproduces Exegol's prompt in Dracula:
+
+```
+[Nov 15, 2026 - 19:05:43 (CET)] lab /workspace #
+```
+
+`SPAWN_ENV` is set in every env, so the prompt names the box you are in. The clock is
+local time: spawn copies the host's zone file to `/etc/localtime`, because without it an
+env is UTC and the clock is quietly wrong. (Pointing `TZDIR` at the profile does *not*
+work — nixpkgs `tzdata` does not put `zoneinfo` in the installed output, so `date`
+printed UTC with `Europe` as the zone abbreviation.)
+
+If you would rather not keep a starship file at all, `prompt = "exegol"` builds the same
+thing in, with nothing to edit:
+
+```toml
+[shell]
+use = "zsh"
+prompt = "exegol"
+```
+
+`workdir` sets where a shell starts, `/root` by default and `/workspace` in the template.
+
 ## A shell you'd choose to live in
 
 The `general` suite ships fzf, zoxide, eza, bat, starship, tmux, neovim, btop, direnv
@@ -135,7 +187,7 @@ and the rest. `[shell]` wires them together so you do not paste the same six
 ```toml
 [shell]
 use = "zsh"              # bash (default) or zsh
-prompt = "starship"      # plain (default) or starship
+prompt = "starship"      # plain (default), starship, or exegol
 history = true           # default when [shell] is present; see below
 aliases = { ll = "eza -l --git", lt = "eza --tree --level=2", v = "nvim", cat = "bat -p" }
 init = '''

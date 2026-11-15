@@ -62,6 +62,8 @@ type Manifest struct {
 	// and nmap dies with "dnet: Failed to open device eth0", and neither error names
 	// the cause. The privilege an env holds is exactly what a user needs to reason
 	// about.
+	// Where a shell starts, and what the prompt shows. Exegol uses /workspace.
+	Workdir string            `toml:"workdir"`
 	Env     map[string]string `toml:"env"`
 	Mounts  []string          `toml:"mounts"`
 	Ports   []string          `toml:"ports"`
@@ -360,6 +362,19 @@ func main() {
 	case "__complete":
 		// Hidden: this is what the shell completion scripts call.
 		complete(args)
+	case "init":
+		dir, force := ".", false
+		for _, a := range args {
+			switch a {
+			case "--force", "-f":
+				force = true
+			default:
+				dir = a
+			}
+		}
+		if err := initKit(dir, force); err != nil {
+			die(err)
+		}
 	case "profiles":
 		// --names is the stable, parseable form. The table is for humans and its
 		// header and rule are not contractual: a CI step that awk'd the table

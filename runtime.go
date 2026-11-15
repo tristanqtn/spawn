@@ -67,7 +67,18 @@ func (m *Manifest) validateRuntime() error {
 			return err
 		}
 	}
+	if w := m.Workdir; w != "" && !strings.HasPrefix(w, "/") {
+		return fmt.Errorf("workdir %q must be an absolute path inside the env", w)
+	}
 	return nil
+}
+
+// workdir is where a shell starts. /root unless the manifest says otherwise.
+func (m *Manifest) workdir() string {
+	if m.Workdir == "" {
+		return "/root"
+	}
+	return filepath.ToSlash(filepath.Clean(m.Workdir))
 }
 
 // Mounting over these would break the env rather than preserve anything: /nix is the

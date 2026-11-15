@@ -17,6 +17,7 @@ import (
 )
 
 var commands = map[string]string{
+	"init":       "write a manifest and editable dotfiles here",
 	"up":         "build an env and enter it, by manifest or by name",
 	"check":      "evaluate a manifest without building",
 	"ls":         "list envs",
@@ -31,7 +32,7 @@ var commands = map[string]string{
 
 // commandOrder is the order the help screen uses: roughly the order a new user meets
 // them, not alphabetical.
-var commandOrder = []string{"up", "ls", "stop", "rm", "check", "doctor", "profiles", "completion", "version", "help"}
+var commandOrder = []string{"init", "up", "ls", "stop", "rm", "check", "doctor", "profiles", "completion", "version", "help"}
 
 const bashCompletion = `# spawn bash completion.  Install with:
 #   spawn completion bash > /etc/bash_completion.d/spawn
@@ -145,6 +146,11 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return []string{"--names:print just the suite names, one per line"}
+	case "init":
+		if len(words) > 1 {
+			return nil
+		}
+		return []string{"--force:overwrite files that are already there"}
 	case "ls", "version", "help":
 		return nil
 	}
@@ -205,6 +211,7 @@ func printUsage() {
   name = "lab"
   profiles = ["general", "web"]
   EOF
+  spawn init        # or start from a configured template
   spawn up          # build it and get a shell
   spawn up lab      # re-enter that env from anywhere
   spawn ls          # see it running
