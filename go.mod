@@ -1,4 +1,4 @@
-module spawn
+module github.com/tristanqtn/spawn
 
 go 1.24.13
 

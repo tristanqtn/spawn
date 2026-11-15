@@ -1,0 +1,65 @@
+package main
+
+import (
+	"os/exec"
+	"testing"
+)
+
+// The lifecycle is the one piece of logic that only breaks against a real runtime:
+// container reuse, the rootfs surviving a restart, and a changed manifest replacing
+// the container without losing what the env wrote. Skips where podman or nix is absent.
+func TestEnvLifecycle(t *testing.T) {
+	if testing.Short() {
+		t.Skip("needs podman and a nix store")
+	}
+	for _, bin := range []string{"podman", "nix"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not on PATH", bin)
+		}
+	}
+
+	const path = "/tmp/spawn-lifecycle-test.toml"
+	parse := func(src string) *Manifest {
+		m, err := Parse([]byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	m := parse("schema = 1\nname = \"spawnselftest\"\ntools = [\"nmap\"]")
+
+	rm(m.Name) // a leftover env from a failed run would make this meaningless
+	t.Cleanup(func() { rm(m.Name) })
+
+	if err := up(m, path, []string{"bash", "-c", "echo kept > /root/marker"}); err != nil {
+		t.Fatal("first up:", err)
+	}
+	if err := up(m, path, []string{"test", "-f", "/root/marker"}); err != nil {
+		t.Fatal("rootfs did not survive a second up:", err)
+	}
+	if err := stop(m.Name); err != nil {
+		t.Fatal("stop:", err)
+	}
+	if got := inspect(m.Name, "{{.State.Running}}"); got == "true" {
+		t.Error("still running after stop")
+	}
+	if err := up(m, path, []string{"test", "-f", "/root/marker"}); err != nil {
+		t.Fatal("up did not restart a stopped env with its data:", err)
+	}
+
+	// A changed manifest must replace the container and keep the rootfs.
+	m2 := parse("schema = 1\nname = \"spawnselftest\"\ntools = [\"nmap\", \"jq\"]")
+	if err := up(m2, path, []string{"bash", "-c", "jq --version >/dev/null && test -f /root/marker"}); err != nil {
+		t.Fatal("recreate on manifest change lost data or the new tool:", err)
+	}
+
+	if err := rm(m.Name); err != nil {
+		t.Fatal("rm:", err)
+	}
+	if inspect(m.Name, "{{.Id}}") != "" {
+		t.Error("container still present after rm")
+	}
+	if dirExists(envDir(m.Name)) {
+		t.Error("rootfs still present after rm")
+	}
+}

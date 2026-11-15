@@ -14,7 +14,7 @@ jobs:
           go-version: "1.24"
       - run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
-      - run: go test ./...
+      - run: go test -short ./...
       - name: cross-compile
         run: |
           for arch in amd64 arm64; do
@@ -47,3 +47,5 @@ jobs:
             ./spawn check /tmp/$p.toml || fail=1
           done
           exit $fail
+      - name: container lifecycle against a real runtime
+        run: go test -run TestEnvLifecycle -v ./...

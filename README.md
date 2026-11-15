@@ -12,10 +12,19 @@ tools = ["masscan"]
 ```
 
 ```
-spawn up            # build and drop into a shell
+spawn up            # build an env and enter it (reuses it if it exists)
 spawn check         # evaluate the manifest, download nothing
+spawn ls            # list envs
+spawn stop <name>   # stop an env, keeping its rootfs
+spawn rm <name>     # destroy an env and its rootfs
 spawn profiles      # list the built-in suites
 ```
+
+An env outlives the shell you entered it from, so `spawn up` twice puts you back in the
+same box. The manifest stays the source of truth: change it and the container is
+recreated, but the env's writable rootfs is kept, so you get the new tools without
+losing what you wrote. spawn keeps no state file — the name, resolved profile and
+manifest path are podman labels, and `podman ps` is the source of truth.
 
 ## Built-in suites
 
@@ -65,5 +74,11 @@ supported hosts; macOS is unvalidated (see `../ROADMAP.md`).
 
 ## Status
 
-M1 walking skeleton. `up`, `check` and `profiles` work; the env is ephemeral, and
-`ls`/`stop`/`rm`/VPN/secrets/snapshots are later milestones.
+M1 is complete: `up`, `check`, `ls`, `stop`, `rm` and `profiles` all work on Linux and
+WSL2. VPN, secrets, declared mounts and snapshots are later milestones — see
+`../ROADMAP.md`.
+
+Two things deliberately left rough: the module pins `nixpkgs` to the `nixos-unstable`
+branch rather than a revision, so builds are reproducible over days but not months; and
+only `/root` and the rest of the rootfs persist, with nothing yet declarable as
+persistent in the manifest.

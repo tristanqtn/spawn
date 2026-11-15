@@ -25,14 +25,6 @@ const schemaVersion = 1
 // ponytail: a branch ref, not a pin. M2 locks it to a rev.
 const defaultNixpkgs = "github:NixOS/nixpkgs/nixos-unstable"
 
-// A multi-user nix install puts its daemon socket here. The socket's DIRECTORY is
-// mode 0770 root:nix-users, and that gid is not mapped into a rootless userns, so the
-// container cannot traverse it -- so bind-mount the socket file itself (mode 0666).
-// Store writes then happen host-side as root, which is why /nix can stay read-only
-// inside the env and one env still cannot corrupt another.
-const nixDaemonSocket = "/nix/var/nix/daemon-socket/socket"
-const envDaemonSocket = "/spawn-nix-daemon"
-
 // With no base image there is no /bin/sh and no /etc/ssl, so every env gets a
 // userland. cacert is not optional: without it every TLS client in the env fails.
 // nix is included so an env can add a package it turns out to need without a rebuild.
@@ -151,10 +143,15 @@ in pkgs.buildEnv { name = "spawn-%s"; paths = with pkgs; [ %s ]; }`,
 		m.Nixpkgs, nixSystem(), m.Name, strings.Join(m.resolved, " "))
 }
 
+func nixCmd(args ...string) *exec.Cmd {
+	c := exec.Command("nix", args...)
+	c.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
+	return c
+}
+
 // build resolves the manifest to a single nix store path.
 func (m *Manifest) build() (string, error) {
-	c := exec.Command("nix", "build", "--impure", "--no-link", "--print-out-paths", "--expr", m.expr())
-	c.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
+	c := nixCmd("build", "--impure", "--no-link", "--print-out-paths", "--expr", m.expr())
 	c.Stderr = os.Stderr
 	out, err := c.Output()
 	if err != nil {
@@ -171,62 +168,18 @@ func (m *Manifest) build() (string, error) {
 // is what surfaces a bad attribute name, an unfree licence or an insecure package,
 // so this is the cheap gate for a suite that would otherwise cost GBs to discover.
 func (m *Manifest) check() (string, error) {
-	c := exec.Command("nix", "eval", "--impure", "--raw", "--expr", "("+m.expr()+").drvPath")
-	c.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
-	out, err := c.CombinedOutput()
+	out, err := nixCmd("eval", "--impure", "--raw", "--expr", "("+m.expr()+").drvPath").CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-func certPath(prof string) string { return prof + "/etc/ssl/certs/ca-bundle.crt" }
-
-func up(m *Manifest, cmd []string) error {
-	prof, err := m.build()
-	if err != nil {
-		return err
-	}
-	// Ephemeral rootfs: writes outside /nix are lost on exit. Persistence is M2.
-	root, err := os.MkdirTemp("", "spawn-rootfs-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(root)
-	for _, d := range []string{"etc", "root", "tmp"} {
-		if err := os.Mkdir(filepath.Join(root, d), 0o755); err != nil {
-			return err
-		}
-	}
-	// --rootfs is a boolean flag: the path is the first POSITIONAL arg, where an
-	// image name would go. Every flag must precede it.
-	args := []string{"run", "--rm", "--name", "spawn-" + m.Name, "--rootfs",
-		"-v", "/nix:/nix:ro",
-		"-e", "PATH=" + prof + "/bin", "-e", "HOME=/root", "-w", "/root",
-		// ponytail: covers curl/openssl/git. Tools that hardcode
-		// /etc/ssl/certs/ca-certificates.crt need a real /etc; revisit in M2.
-		"-e", "SSL_CERT_FILE=" + certPath(prof), "-e", "NIX_SSL_CERT_FILE=" + certPath(prof),
-		"-e", "NIX_CONFIG=experimental-features = nix-command flakes"}
-	if _, err := os.Stat(nixDaemonSocket); err == nil {
-		args = append(args,
-			"-v", nixDaemonSocket+":"+envDaemonSocket,
-			"-e", "NIX_REMOTE=unix://"+envDaemonSocket)
-	} else {
-		fmt.Fprintf(os.Stderr, "spawn: no nix daemon at %s, so nix inside the env is read-only\n", nixDaemonSocket)
-	}
-	if len(cmd) == 0 {
-		args = append(args, "-it", root, prof+"/bin/bash")
-	} else {
-		args = append(args, root)
-		args = append(args, cmd...)
-	}
-	c := exec.Command("podman", args...)
-	c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
-	return c.Run()
-}
-
-const usage = `usage: spawn up    [manifest.toml] [cmd...]   build and enter an env
+const usage = `usage: spawn up    [manifest.toml] [cmd...]   build an env and enter it
        spawn check [manifest.toml]           evaluate it, download nothing
+       spawn ls                              list envs
+       spawn stop <name>                     stop an env, keeping its rootfs
+       spawn rm   <name>                     destroy an env and its rootfs
        spawn profiles                        list the built-in suites`
 
 // manifestArg pulls an optional manifest path off the front of the args.
@@ -240,15 +193,27 @@ func manifestArg(args []string) (string, []string) {
 func load(path string) *Manifest {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "spawn:", err)
-		os.Exit(1)
+		die(err)
 	}
 	m, err := Parse(b)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "spawn: %s: %s\n", path, err)
-		os.Exit(1)
+		die(fmt.Errorf("%s: %s", path, err))
 	}
 	return m
+}
+
+func die(err error) {
+	fmt.Fprintln(os.Stderr, "spawn:", err)
+	os.Exit(1)
+}
+
+// arg1 returns the single required argument for a command that names an env.
+func arg1(args []string, cmd string) string {
+	if len(args) != 1 {
+		fmt.Fprintf(os.Stderr, "usage: spawn %s <name>\n", cmd)
+		os.Exit(2)
+	}
+	return args[0]
 }
 
 func main() {
@@ -256,30 +221,44 @@ func main() {
 		fmt.Fprintln(os.Stderr, usage)
 		os.Exit(2)
 	}
+	args := os.Args[2:]
 	switch os.Args[1] {
 	case "profiles":
 		for _, n := range profileNames() {
 			ts, err := profileTools(n)
 			if err != nil {
-				fmt.Fprintln(os.Stderr, "spawn:", err)
-				os.Exit(1)
+				die(err)
 			}
 			fmt.Printf("%-18s %d tools\n", n, len(ts))
 		}
 	case "check":
-		path, _ := manifestArg(os.Args[2:])
+		path, _ := manifestArg(args)
 		m := load(path)
 		drv, err := m.check()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "spawn: %s does not evaluate:\n%s\n", path, err)
-			os.Exit(1)
+			die(fmt.Errorf("%s does not evaluate:\n%s", path, err))
 		}
 		fmt.Printf("%s: %d packages ok -> %s\n", m.Name, len(m.resolved), drv)
 	case "up":
-		path, rest := manifestArg(os.Args[2:])
-		if err := up(load(path), rest); err != nil {
-			fmt.Fprintln(os.Stderr, "spawn:", err)
-			os.Exit(1)
+		path, rest := manifestArg(args)
+		abs, err := filepath.Abs(path)
+		if err != nil {
+			die(err)
+		}
+		if err := up(load(path), abs, rest); err != nil {
+			die(err)
+		}
+	case "ls":
+		if err := ls(); err != nil {
+			die(err)
+		}
+	case "stop":
+		if err := stop(arg1(args, "stop")); err != nil {
+			die(err)
+		}
+	case "rm":
+		if err := rm(arg1(args, "rm")); err != nil {
+			die(err)
 		}
 	default:
 		fmt.Fprintf(os.Stderr, "spawn: unknown command %q\n%s\n", os.Args[1], usage)
