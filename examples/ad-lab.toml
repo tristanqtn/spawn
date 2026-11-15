@@ -3,3 +3,18 @@ schema = 1
 name = "ad-lab"
 profiles = ["general", "active-directory"]
 tools = ["masscan", "seclists"]
+
+# nmap -sS and ping need raw sockets; a tunnel needs NET_ADMIN and the tun device.
+caps = ["NET_ADMIN", "NET_RAW"]
+devices = ["/dev/net/tun"]
+
+# Loot and tool config outlive `spawn rm`, so a tool upgrade costs nothing.
+persist = ["/loot", "/root/.msf4"]
+mounts = ["./notes:/notes"]
+
+[secrets]
+vpn = "age:~/secrets/lab.ovpn.age"   # readable at /run/secrets/vpn
+
+[limits]
+memory = "8g"
+pids = 1024

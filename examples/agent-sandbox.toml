@@ -1,6 +1,12 @@
-# A disposable box for an LLM agent to test things in.
+# A disposable box for an agent to test things in.
 # Many of these from one manifest share a single nix closure, so the Nth costs ~0.
 schema = 1
 name = "agent"
 profiles = ["general"]
 tools = ["nodejs", "go", "gcc", "sqlite"]
+
+# Keep an agent's experiment bounded without trusting it to behave.
+[limits]
+cpus = "2"
+memory = "2g"
+pids = 512

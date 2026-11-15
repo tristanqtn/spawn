@@ -47,5 +47,8 @@ jobs:
             ./spawn check /tmp/$p.toml || fail=1
           done
           exit $fail
-      - name: container lifecycle against a real runtime
-        run: go test -run TestEnvLifecycle -v ./...
+      - name: integration tests against a real runtime
+        # Lifecycle, persist-survives-rm and the secret leak test all need podman
+        # and a nix store, so they only run here. They skip rather than fail if
+        # either is missing.
+        run: go test -v ./...
