@@ -263,6 +263,40 @@ There is no base image, so there is no `/etc/passwd` either — and without it e
 login shell since `/bin/bash` does not exist. Declare any of those in `files` to
 override it.
 
+## Snapshots, forks and diffs
+
+```
+spawn diff <env>              every file the env changed
+spawn snapshot <env> [tag]    copy its filesystem aside
+spawn snapshots <env>         list them
+spawn restore <env> <tag>     put one back
+spawn fork <env> <new-name>   copy it into a new env
+```
+
+W0 planned to use `podman commit` for this. That turns out to be impossible:
+
+```
+Error: cannot commit a container that uses an exploded rootfs
+```
+
+a direct consequence of having no base image. The replacement is better than the plan.
+Because `/nix` is mounted rather than copied, an env's rootfs contains **only what the
+env itself wrote** — a couple of hundred kilobytes, not a gigabyte. So a snapshot is a
+directory copy, a fork is a directory copy, and a diff can afford to hash every file.
+
+`diff` compares against a baseline recorded once, right after spawn finishes seeding, so
+it reports what the *env* changed and never what spawn put there. The baseline stores a
+hash rather than size and mtime, so a same-length edit is still caught. A fork carries
+the baseline with it, so `spawn diff` on the fork still measures from the original
+starting point. Forking is commit-then-start, never live migration: CRIU is unavailable
+on the WSL2 kernel, so running processes are not copied.
+
+Measured: two envs from one tool set share a **232 MB** closure, and the second env's own
+files come to **3,264 bytes — 0.0014%** of it. That is the whole economic case for agent
+sandboxes, so there is a test asserting it rather than a claim in a README. Note the
+limit of it: W0 measured that reuse *across different* profiles is only ~10%, so this
+holds for many instances of one profile, which is exactly the agent case.
+
 ## VPN and the kill switch
 
 ```toml

@@ -202,6 +202,14 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	if err := m.seedFiles(filepath.Dir(manifestPath)); err != nil {
 		return err
 	}
+	// The baseline records the env as spawn leaves it, so `spawn diff` reports what
+	// the env changed rather than what spawn seeded. Written once: re-recording it
+	// on every up would quietly adopt an agent's changes as the starting point.
+	if _, err := os.Stat(filepath.Join(envDir(m.Name), baselineFile)); os.IsNotExist(err) {
+		if err := writeBaseline(m.Name, prof); err != nil {
+			return err
+		}
+	}
 	// The network files have to exist before the container starts, so the policy can
 	// go on at once rather than after something has had a chance to leak.
 	if err := m.seedNetwork(prof, filepath.Dir(manifestPath)); err != nil {

@@ -450,6 +450,79 @@ func main() {
 		if err := doctor(path); err != nil {
 			die(err)
 		}
+	case "diff":
+		ch, err := diffEnv(arg1(args, "diff"))
+		if err != nil {
+			die(err)
+		}
+		if len(ch) == 0 {
+			fmt.Println(ui.paint(ui.dim, "nothing changed since the env was created"))
+			break
+		}
+		tb := newTable("", "BYTES", "PATH")
+		for _, c := range ch {
+			colour := ui.green
+			switch c.Kind {
+			case "deleted":
+				colour = ui.red
+			case "modified":
+				colour = ui.yellow
+			}
+			tb.add(ui.paint(colour, c.Kind), fmt.Sprint(c.Size), c.Path)
+		}
+		tb.print()
+		fmt.Printf("\n%d file(s) changed\n", len(ch))
+	case "snapshot":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
+		if len(args) < 1 || len(args) > 2 {
+			die(fmt.Errorf("usage: spawn snapshot <env> [tag]"))
+		}
+		tag := ""
+		if len(args) == 2 {
+			tag = args[1]
+		}
+		dst, err := snapshot(args[0], tag)
+		if err != nil {
+			die(err)
+		}
+		fmt.Printf("snapshot saved: %s\n", ui.paint(ui.dim, dst))
+	case "snapshots":
+		snaps, err := listSnapshots(arg1(args, "snapshots"))
+		if err != nil {
+			die(err)
+		}
+		if len(snaps) == 0 {
+			fmt.Println(ui.paint(ui.dim, "no snapshots"))
+			break
+		}
+		for _, s := range snaps {
+			fmt.Println(s)
+		}
+	case "restore":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
+		if len(args) != 2 {
+			die(fmt.Errorf("usage: spawn restore <env> <tag>"))
+		}
+		if err := restore(args[0], args[1]); err != nil {
+			die(err)
+		}
+		fmt.Printf("restored %s from %s; spawn up starts it again\n", args[0], args[1])
+	case "fork":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
+		if len(args) != 2 {
+			die(fmt.Errorf("usage: spawn fork <env> <new-name>"))
+		}
+		if err := fork(args[0], args[1]); err != nil {
+			die(err)
+		}
+		fmt.Printf("forked %s -> %s (filesystem only; running processes are not copied)\n",
+			args[0], args[1])
 	case "ls":
 		if err := requireDeps(depPodman); err != nil {
 			die(err)

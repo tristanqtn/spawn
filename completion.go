@@ -23,6 +23,11 @@ var commands = map[string]string{
 	"ls":         "list envs",
 	"stop":       "stop an env, keeping its rootfs",
 	"rm":         "destroy an env and its rootfs",
+	"diff":       "show every file the env changed",
+	"snapshot":   "copy the env's filesystem aside",
+	"snapshots":  "list an env's snapshots",
+	"restore":    "put a snapshot back",
+	"fork":       "copy an env into a new one",
 	"doctor":     "check this host, and a manifest against it",
 	"profiles":   "list the built-in suites",
 	"completion": "print a shell completion script",
@@ -32,7 +37,9 @@ var commands = map[string]string{
 
 // commandOrder is the order the help screen uses: roughly the order a new user meets
 // them, not alphabetical.
-var commandOrder = []string{"init", "up", "ls", "stop", "rm", "check", "doctor", "profiles", "completion", "version", "help"}
+var commandOrder = []string{"init", "up", "ls", "stop", "rm", "diff", "snapshot",
+	"snapshots", "restore", "fork", "check", "doctor", "profiles", "completion",
+	"version", "help"}
 
 const bashCompletion = `# spawn bash completion.  Install with:
 #   spawn completion bash > /etc/bash_completion.d/spawn
@@ -115,6 +122,20 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return envNames("running")
+	case "diff", "snapshot", "snapshots", "fork":
+		if len(words) > 1 {
+			return nil
+		}
+		return envNames("")
+	case "restore":
+		if len(words) == 1 {
+			return envNames("")
+		}
+		if len(words) == 2 {
+			snaps, _ := listSnapshots(words[1])
+			return snaps
+		}
+		return nil
 	case "rm":
 		if len(words) == 1 {
 			return append([]string{"--purge:also delete persisted data"}, envNames("")...)
