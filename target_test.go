@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"os/exec"
 	"reflect"
 	"strings"
@@ -70,4 +71,55 @@ func nonEmpty(s []string) []string {
 		return nil
 	}
 	return s
+}
+
+// attach is the path taken when an env's manifest is gone, and the quick way into a
+// box: no nix build at all. It has to use the SHELL the manifest chose, which is why
+// that is recorded as a label.
+func TestAttachRunsWithoutTheManifest(t *testing.T) {
+	requireRuntime(t)
+
+	m, err := Parse([]byte("schema = 1\nname = \"spawnattachtest\"\ntools = [\"coreutils\"]\n" +
+		"[shell]\nuse = \"zsh\"\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := "/tmp/spawn-attach-test.toml"
+	if err := os.WriteFile(path, []byte("schema = 1\nname = \"spawnattachtest\"\ntools = [\"coreutils\"]\n"+
+		"[shell]\nuse = \"zsh\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rm(m.Name, true)
+	t.Cleanup(func() { rm(m.Name, true); os.Remove(path) })
+	if err := up(m, path, []string{"true"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The recorded shell is the declared one, not a silent fallback to bash.
+	if sh := inspect(m.Name, `{{index .Config.Labels "spawn.shell"}}`); !strings.HasSuffix(sh, "/bin/zsh") {
+		t.Errorf("recorded shell is %q, want the profile's zsh", sh)
+	}
+
+	// Delete the manifest: resolveTarget must still find the env by name, and
+	// upTarget must fall back to attaching rather than refusing.
+	os.Remove(path)
+	tg := resolveTarget([]string{m.Name, "true"})
+	if tg.env != m.Name {
+		t.Fatalf("resolveTarget did not recognise the env: %+v", tg)
+	}
+	if err := upTarget(tg); err != nil {
+		t.Fatal("attaching to an env whose manifest is gone failed:", err)
+	}
+
+	// Attach also has to start a STOPPED env, or `spawn up <name>` would do nothing
+	// useful after a reboot.
+	if err := stop(m.Name); err != nil {
+		t.Fatal(err)
+	}
+	if err := attach(m.Name, []string{"true"}); err != nil {
+		t.Fatal("attach did not start a stopped env:", err)
+	}
+	if inspect(m.Name, "{{.State.Running}}") != "true" {
+		t.Error("the env is not running after attach")
+	}
 }

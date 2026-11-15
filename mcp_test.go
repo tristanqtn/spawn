@@ -179,3 +179,81 @@ func TestAgentManifestTextParsesBack(t *testing.T) {
 		t.Errorf("round-trip lost something: %+v", m)
 	}
 }
+
+// The MCP tool paths, exercised directly rather than only through the agent-loop
+// script. callTool is what an agent actually reaches, so each tool's happy path and
+// its failure path get asserted here where `go test` will keep them honest.
+func TestMCPToolCallLifecycle(t *testing.T) {
+	requireRuntime(t)
+
+	const env = "spawnmcptool"
+	args := func(kv string) json.RawMessage { return json.RawMessage(kv) }
+	rm(env, true)
+	t.Cleanup(func() { rm(env, true) })
+
+	// create
+	text, isErr := callTool("spawn_create", args(`{"name":"`+env+`","tools":["coreutils","nftables","iproute2"]}`))
+	if isErr {
+		t.Fatal("spawn_create failed:", text)
+	}
+	// The agent has to be TOLD it has no network, or it will waste turns finding out.
+	if !strings.Contains(text, "no network access") {
+		t.Errorf("create did not state the egress policy: %q", text)
+	}
+	if inspect(env, "{{.Id}}") == "" {
+		t.Fatal("spawn_create reported success but created no container")
+	}
+
+	// exec, and a failing command must not be reported as a server error
+	text, isErr = callTool("spawn_exec", args(`{"name":"`+env+`","command":"echo hello > /root/f.txt; echo ran"}`))
+	if isErr || !strings.Contains(text, "ran") {
+		t.Errorf("spawn_exec: %q (isError=%v)", text, isErr)
+	}
+	text, isErr = callTool("spawn_exec", args(`{"name":"`+env+`","command":"exit 3"}`))
+	if isErr {
+		t.Errorf("a non-zero exit became a tool error: %q", text)
+	}
+	if _, isErr := callTool("spawn_exec", args(`{"name":"nosuchenv","command":"true"}`)); !isErr {
+		t.Error("exec against a missing env should be an error result")
+	}
+	// Missing arguments are caught rather than passed to the shell.
+	if _, isErr := callTool("spawn_exec", args(`{"name":"`+env+`"}`)); !isErr {
+		t.Error("exec with no command should be rejected")
+	}
+
+	// diff sees what exec did
+	text, isErr = callTool("spawn_diff", args(`{"name":"`+env+`"}`))
+	if isErr || !strings.Contains(text, "/root/f.txt") {
+		t.Errorf("spawn_diff: %q (isError=%v)", text, isErr)
+	}
+
+	// snapshot, break, restore -- and restore must leave a USABLE env, which is the
+	// bug the agent-loop script found.
+	if text, isErr = callTool("spawn_snapshot", args(`{"name":"`+env+`","tag":"t1"}`)); isErr {
+		t.Fatal("spawn_snapshot:", text)
+	}
+	callTool("spawn_exec", args(`{"name":"`+env+`","command":"rm -f /root/f.txt"}`))
+	if text, isErr = callTool("spawn_restore", args(`{"name":"`+env+`","tag":"t1"}`)); isErr {
+		t.Fatal("spawn_restore:", text)
+	}
+	text, isErr = callTool("spawn_exec", args(`{"name":"`+env+`","command":"cat /root/f.txt"}`))
+	if isErr || !strings.Contains(text, "hello") {
+		t.Errorf("the env was not usable after a restore: %q (isError=%v)", text, isErr)
+	}
+
+	// audit is readable even when nothing has been refused
+	if text, isErr = callTool("spawn_audit", args(`{"name":"`+env+`"}`)); isErr {
+		t.Errorf("spawn_audit: %q", text)
+	}
+
+	// list, then destroy
+	if text, isErr = callTool("spawn_list", nil); isErr || !strings.Contains(text, env) {
+		t.Errorf("spawn_list: %q", text)
+	}
+	if text, isErr = callTool("spawn_destroy", args(`{"name":"`+env+`"}`)); isErr {
+		t.Fatal("spawn_destroy:", text)
+	}
+	if inspect(env, "{{.Id}}") != "" {
+		t.Error("spawn_destroy left the container behind")
+	}
+}

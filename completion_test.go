@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -116,6 +118,44 @@ func TestOnlyZshAsksForDescriptions(t *testing.T) {
 		s, _ := completionScript(shell)
 		if strings.Contains(s, "--describe") {
 			t.Errorf("%s must not request descriptions: it would split them into separate candidates", shell)
+		}
+	}
+}
+
+// Every command main() dispatches must appear in the help and in completion, and
+// nothing may be documented that does not exist. Four commands were added after this
+// file was written, so the guard reads the dispatch switch itself rather than trusting
+// a hand-kept list.
+func TestEveryDispatchedCommandIsDocumented(t *testing.T) {
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Aliases and the hidden completion hook are intentionally undocumented.
+	hidden := map[string]bool{
+		"__complete": true, "-h": true, "--help": true, "--version": true,
+	}
+	re := regexp.MustCompile(`(?m)^\tcase "([a-z_-]+)"(?:, "([^"]+)")*:`)
+	caseRe := regexp.MustCompile(`"([a-zA-Z_-]+)"`)
+	dispatched := map[string]bool{}
+	for _, line := range re.FindAllString(string(src), -1) {
+		for _, m := range caseRe.FindAllStringSubmatch(line, -1) {
+			if !hidden[m[1]] {
+				dispatched[m[1]] = true
+			}
+		}
+	}
+	if len(dispatched) < 15 {
+		t.Fatalf("only found %d dispatched commands; the parser is wrong: %v", len(dispatched), dispatched)
+	}
+	for c := range dispatched {
+		if commands[c] == "" {
+			t.Errorf("main() dispatches %q but it is not in the help or completion", c)
+		}
+	}
+	for c := range commands {
+		if !dispatched[c] {
+			t.Errorf("%q is documented but main() does not dispatch it", c)
 		}
 	}
 }
