@@ -49,8 +49,16 @@ spawn check         # evaluate the manifest, download nothing
 spawn ls            # list envs
 spawn stop <name>   # stop an env, keeping its rootfs
 spawn rm <name>     # destroy an env and its rootfs
+spawn doctor        # check this host, and a manifest against it
 spawn profiles      # list the built-in suites
 ```
+
+`spawn doctor` exists because the failures here name nothing useful. Without `NET_RAW`,
+`ping` fails *at exec* with `Operation not permitted` and `nmap` dies with
+`dnet: Failed to open device eth0`. A cgroup limit the kernel silently ignores looks
+like it worked. Rootless podman refuses to run under `sg`/`newgrp` with an error that
+only mentions `newuidmap`. Every check ends in the manifest field or host action that
+fixes it, rather than just saying something is broken.
 
 An env outlives the shell you entered it from, so `spawn up` twice puts you back in the
 same box. The manifest stays the source of truth: change it and the container is

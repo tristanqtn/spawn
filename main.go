@@ -252,6 +252,7 @@ const usage = `usage: spawn up    [manifest.toml] [cmd...]   build an env and en
        spawn ls                              list envs
        spawn stop <name>                     stop an env, keeping its rootfs
        spawn rm [--purge] <name>             destroy an env; --purge drops persisted data
+       spawn doctor [manifest.toml]          check this host, and the manifest on it
        spawn profiles                        list the built-in suites`
 
 // manifestArg pulls an optional manifest path off the front of the args.
@@ -318,6 +319,15 @@ func main() {
 			die(err)
 		}
 		if err := up(load(path), abs, rest); err != nil {
+			die(err)
+		}
+	case "doctor":
+		path, _ := manifestArg(args)
+		// Unlike the other commands, doctor is useful with no manifest at all.
+		if _, err := os.Stat(path); err != nil {
+			path = ""
+		}
+		if err := doctor(path); err != nil {
 			die(err)
 		}
 	case "ls":
