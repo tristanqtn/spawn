@@ -114,6 +114,54 @@ These are manifest fields rather than an environment variable spawn sets for you
 because allowing unfree or known-vulnerable code is your decision and should be visible
 when someone reads the file.
 
+## Configuring the tools, not just installing them
+
+Installing `fzf`, `tmux` and `zsh` is the easy half. `files` declares their config:
+
+```toml
+[files]
+# From a real dotfile on the host: edit it with syntax highlighting, keep it in git.
+"/root/.tmux.conf"    = { from = "./dotfiles/tmux.conf" }
+# A whole directory, so a plugin manager can write its lockfile next to init.lua.
+"/root/.config/nvim"  = { from = "./dotfiles/nvim" }
+# Tighten the mode where it matters.
+"/root/.ssh/config"   = { from = "./dotfiles/ssh_config", mode = "0600" }
+
+# Or inline. TOML literal strings need no escaping, which suits shell config.
+[files."/root/.zshrc"]
+content = '''
+eval "$(starship init zsh)"
+source "$(fzf-share)/key-bindings.zsh"
+alias ls=eza
+'''
+```
+
+**`files` copies; it does not mount.** That distinction is the whole point. A
+bind-mounted dotfile is read-only, so every tool that rewrites its own config breaks —
+neovim writing `lazy-lock.json`, `gh` writing `hosts.yml`, `bat` building a cache. A
+copied file is a real, writable file.
+
+It works because `--rootfs` is a plain host directory, so seeding a file into an env is
+ordinary file copying — no podman involved, and it applies to a **running** env.
+Edit a dotfile, re-run `spawn up`, and the change is in the box.
+
+Declared files are **authoritative and overwritten on every `up`**. That is the point of
+declaring them: the manifest wins. If you tweak one inside the env and want to keep the
+tweak, copy it back to the host file. For state you want to survive regardless — shell
+history, caches — use `persist` and point the tool at it (`HISTFILE=/root/.local/state/...`).
+
+Declaring a file underneath a `persist` entry or a `mounts` target is an error, because
+the mount would silently hide it.
+
+### What spawn provides on its own
+
+There is no base image, so there is no `/etc/passwd` either — and without it every
+`getpwuid()` call fails: `zsh` reports `can't drop privileges`, `ssh` refuses to start,
+`tmux` cannot find a login shell. spawn therefore seeds `/etc/passwd`, `/etc/group`,
+`/etc/nsswitch.conf` and `/etc/shells` on every `up`, with the profile's bash as the
+login shell since `/bin/bash` does not exist. Declare any of those in `files` to
+override it.
+
 ## Secrets
 
 A secret is referenced by path to an **encrypted** file. spawn decrypts it into a tmpfs

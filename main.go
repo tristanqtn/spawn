@@ -67,6 +67,9 @@ type Manifest struct {
 	Ports   []string          `toml:"ports"`
 	Caps    []string          `toml:"caps"`
 	Devices []string          `toml:"devices"`
+	// Config files copied into the env, writable, so a tool that rewrites its own
+	// config works. Keyed by the path inside the env. See files.go.
+	Files map[string]fileSpec `toml:"files"`
 	// Secrets, referenced by path to an ENCRYPTED file and exposed read-only at
 	// /run/secrets/<name>. Never a nix store path: /nix/store is world-readable and
 	// permanent. See secrets.go.
@@ -194,6 +197,9 @@ func Parse(b []byte) (*Manifest, error) {
 		m.Nixpkgs = defaultNixpkgs
 	}
 	if err := m.validateRuntime(); err != nil {
+		return nil, err
+	}
+	if err := m.validateFiles(); err != nil {
 		return nil, err
 	}
 	return &m, nil

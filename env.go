@@ -180,6 +180,15 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 			return err
 		}
 	}
+	// On every up, so that editing a host dotfile and re-running applies it -- even
+	// to an env already running, since the rootfs directory IS the container's
+	// filesystem. Base identity first, so a manifest can override any of it.
+	if err := seedBaseEtc(m.Name, prof); err != nil {
+		return err
+	}
+	if err := m.seedFiles(filepath.Dir(manifestPath)); err != nil {
+		return err
+	}
 	if inspect(m.Name, "{{.State.Running}}") != "true" {
 		if _, err := podmanOut("start", cname(m.Name)); err != nil {
 			return err
@@ -192,7 +201,9 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	if len(cmd) == 0 {
 		ex = append(ex, "-it", cname(m.Name), prof+"/bin/bash")
 	} else {
-		ex = append(ex, cname(m.Name))
+		// -i so a command can be piped into: `echo x | spawn up env.toml cat`.
+		// Without it podman does not attach stdin and the command reads EOF.
+		ex = append(ex, "-i", cname(m.Name))
 		ex = append(ex, cmd...)
 	}
 	return podmanIO(ex...)
