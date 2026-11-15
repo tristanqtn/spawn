@@ -103,6 +103,12 @@ func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error
 	} else {
 		fmt.Fprintf(os.Stderr, "spawn: no nix daemon at %s, so nix inside the env is read-only\n", nixDaemonSocket)
 	}
+	if j := m.Network.Join; j != "" {
+		if err := ensureJoinedNetwork(j); err != nil {
+			return nil, "", err
+		}
+		args = append(args, "--network", j)
+	}
 	rt, err := m.runtimeArgs(filepath.Dir(manifestPath))
 	if err != nil {
 		return nil, "", err

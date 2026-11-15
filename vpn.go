@@ -218,6 +218,22 @@ const routeAllTemplate = `
 ip route replace default dev %s 2>/dev/null || echo "spawn: could not route the default via %s" >&2
 `
 
+// ensureJoinedNetwork creates the shared network if it does not exist. Creating it is
+// idempotent and saves a manual step that would otherwise fail the first `up`.
+func ensureJoinedNetwork(name string) error {
+	if name == "" {
+		return nil
+	}
+	if _, err := podmanOut("network", "exists", name); err == nil {
+		return nil
+	}
+	if _, err := podmanOut("network", "create", name); err != nil {
+		return fmt.Errorf("could not create the podman network %q: %w", name, err)
+	}
+	fmt.Fprintf(os.Stderr, "spawn: created podman network %s\n", name)
+	return nil
+}
+
 // seedNetwork writes the policy, the VPN config and the connect script into the env.
 func (m *Manifest) seedNetwork(prof, manifestDir string) error {
 	if m.effectiveEgress() == egressAllow && !m.VPN.declared() {

@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // M3's exit criterion, and the deliverable: an automated leak test.
@@ -195,5 +196,58 @@ func TestKillSwitchHoldsWithNoTunnel(t *testing.T) {
 	// And forced out the non-tunnel interface, which is the real bypass attempt.
 	if reaches(t, m.Name, "1.1.1.1:443", "tap0") {
 		t.Error("LEAK: traffic bound to the non-tunnel interface escaped")
+	}
+}
+
+// network.join exists because pasta puts each env behind its own NAT, so two envs can
+// only reach each other through a published port -- and that path forwards a VPN
+// handshake and then silently stops, which cost real debugging time. Envs on a shared
+// podman network talk directly.
+func TestJoinedEnvsReachEachOther(t *testing.T) {
+	requireRuntime(t)
+
+	const net = "spawnjointest"
+	mk := func(name string) *Manifest {
+		m, err := Parse([]byte("schema = 1\nname = \"" + name + "\"\n" + netTools +
+			"\n[network]\njoin = \"" + net + "\"\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		rm(m.Name, true)
+		t.Cleanup(func() { rm(m.Name, true) })
+		if err := up(m, "/tmp/"+name+".toml", []string{"true"}); err != nil {
+			t.Fatal(name, err)
+		}
+		return m
+	}
+	t.Cleanup(func() { podmanOut("network", "rm", "-f", net) })
+
+	srv := mk("spawnjoinsrv")
+	cli := mk("spawnjoincli")
+
+	// A joined env gets a real address, rather than only pasta's private one.
+	ip, err := podmanOut("inspect", cname(srv.Name), "-f",
+		`{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}`)
+	if err != nil || ip == "" {
+		t.Fatalf("the joined env got no address on %s: %q (%v)", net, ip, err)
+	}
+
+	// Serve a known string and read it from the other env: this is the property the
+	// VPN datapath test depends on.
+	if _, err := execIn(srv.Name, "echo JOINED-OK > /tmp/p"); err != nil {
+		t.Fatal(err)
+	}
+	// podman exec reaps the whole process group when the session ends, so a
+	// backgrounded listener dies with it however it is detached. -d is the only way
+	// to leave something running.
+	prof := inspect(srv.Name, `{{index .Config.Labels "spawn.profile"}}`)
+	if _, err := podmanOut("exec", "-d", cname(srv.Name), prof+"/bin/socat",
+		"TCP-LISTEN:5557,fork,reuseaddr", "OPEN:/tmp/p"); err != nil {
+		t.Fatal("could not start the listener:", err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+	out, err := execIn(cli.Name, "timeout 6 socat -T4 - TCP:"+ip+":5557 2>/dev/null")
+	if err != nil || !strings.Contains(out, "JOINED-OK") {
+		t.Errorf("envs on a shared network could not reach each other: %q (%v)", out, err)
 	}
 }

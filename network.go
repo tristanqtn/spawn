@@ -26,6 +26,11 @@ import (
 type networkConfig struct {
 	// allow (default), deny, or vpn.
 	Egress string `toml:"egress"`
+	// Join a podman network, so several envs can talk to each other directly.
+	// Without this an env is behind pasta's NAT and is reachable only through
+	// published ports -- which is fine for a shell, but breaks anything that needs
+	// a sustained flow between two envs, a VPN datapath being the obvious case.
+	Join string `toml:"join"`
 	// Exceptions: CIDRs, bare IPs, or proto:port such as "udp:53".
 	Allow []string `toml:"allow"`
 }
@@ -96,6 +101,10 @@ func (m *Manifest) validateNetwork() error {
 		if err := validAllowEntry(a); err != nil {
 			return err
 		}
+	}
+	// The name becomes a podman network name and a CLI argument.
+	if j := m.Network.Join; j != "" && !attrRe.MatchString(j) {
+		return fmt.Errorf("network.join %q is not a plain name", j)
 	}
 	if v := m.VPN; v.declared() {
 		if v.Kind != "openvpn" && v.Kind != "wireguard" {

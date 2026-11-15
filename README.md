@@ -318,20 +318,36 @@ The positive cases use `egress = "deny"`, which leaves a working default route i
 so the rule is the only thing that can stop a packet. That mode is also M4's agent
 sandbox, which is why they share one engine.
 
-### WireGuard
+### The datapath proof
 
-Verified end to end against a real peer: spawn creates `wg0` (kernel module, which
-autoloads on the netlink request even in a rootless userns), applies the config,
-assigns the address, routes the default through it, and the peer **completes a
-handshake** with traffic counted in both directions.
+`test/vpn-datapath.sh` builds a real VPN server as a second env and pushes a payload
+across both kinds of tunnel, with the kill switch in force:
 
-What is *not* yet verified is a sustained TCP datapath, and the reason is the test rig
-rather than spawn. Running both tunnel ends as rootless containers reachable only
-through a **host-published UDP port** works for the handshake and then stops
-forwarding: the server's receive counter freezes while the client retransmits. OpenVPN
-behaves identically in the same rig. The W0 spike used a shared podman network between
-the two containers for exactly this reason, so the remaining verification is to test the
-datapath that way rather than through published ports.
+```
+[PASS] OpenVPN: payload crossed the tunnel
+[PASS] OpenVPN: kill switch sealed the non-tunnel interface
+[PASS] WireGuard: handshake completed
+[PASS] WireGuard: payload crossed the tunnel
+```
+
+WireGuard uses the kernel module, which autoloads on the netlink request even in a
+rootless userns, and falls back to `wireguard-go` in userspace when it is unavailable —
+so WireGuard works anywhere OpenVPN does.
+
+That script exists in this form because of a trap worth knowing about. Reaching the
+server through a **host-published UDP port** forwards the handshake and then silently
+stops: the server's receive counter freezes while the client retransmits. Both OpenVPN
+and WireGuard do it, so it is the rootless published-port path, not the tunnel. The fix
+is `network.join`, which puts both envs on a shared podman network so they talk
+directly:
+
+```toml
+[network]
+join = "spawnlab"
+```
+
+Without it each env sits behind its own NAT and is reachable only through published
+ports, which is fine for a shell and wrong for anything needing a sustained flow.
 
 ## Secrets
 
