@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strings"
 	"testing"
 )
@@ -252,4 +253,43 @@ func count(ss []string, want string) int {
 		}
 	}
 	return n
+}
+
+// The generated script may only use what spawn installs. An earlier version reached
+// for sed, grep and pgrep -- none of which spawn adds -- and a WireGuard tunnel came
+// up with no address at all, silently, because the line parsing the config could not
+// run. This is the regression guard.
+func TestNetupScriptUsesNoUninstalledTools(t *testing.T) {
+	for _, kind := range []string{"openvpn", "wireguard"} {
+		m := mustParse(t, "schema = 1\nname = \"x\"\ntools = [\"nmap\"]\n"+
+			"[vpn]\nkind = \""+kind+"\"\nconfig = \"./c.conf\"\n")
+		s := m.netupScript("/nix/store/p")
+		// Anything spawn does not install for a VPN env.
+		for _, forbidden := range []string{"sed ", "grep ", "pgrep", "awk ", "cut ", "tr "} {
+			if strings.Contains(s, forbidden) {
+				t.Errorf("%s script calls %q, which spawn does not install:\n%s", kind, forbidden, s)
+			}
+		}
+		// And it must still actually parse the config it needs to.
+		if kind == "wireguard" && !strings.Contains(s, "ini_values") {
+			t.Error("the wireguard script lost its config parsing")
+		}
+	}
+}
+
+// The bash emitted for WireGuard has to be syntactically valid, which a Go test can
+// check cheaply by asking bash itself.
+func TestNetupScriptIsValidBash(t *testing.T) {
+	if _, err := exec.LookPath("bash"); err != nil {
+		t.Skip("no bash on PATH")
+	}
+	for _, kind := range []string{"openvpn", "wireguard"} {
+		m := mustParse(t, "schema = 1\nname = \"x\"\ntools = [\"nmap\"]\n"+
+			"[vpn]\nkind = \""+kind+"\"\nconfig = \"./c.conf\"\n")
+		cmd := exec.Command("bash", "-n")
+		cmd.Stdin = strings.NewReader(m.netupScript("/nix/store/p"))
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Errorf("%s script is not valid bash: %v\n%s", kind, err, out)
+		}
+	}
 }

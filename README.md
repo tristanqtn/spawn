@@ -318,6 +318,21 @@ The positive cases use `egress = "deny"`, which leaves a working default route i
 so the rule is the only thing that can stop a packet. That mode is also M4's agent
 sandbox, which is why they share one engine.
 
+### WireGuard
+
+Verified end to end against a real peer: spawn creates `wg0` (kernel module, which
+autoloads on the netlink request even in a rootless userns), applies the config,
+assigns the address, routes the default through it, and the peer **completes a
+handshake** with traffic counted in both directions.
+
+What is *not* yet verified is a sustained TCP datapath, and the reason is the test rig
+rather than spawn. Running both tunnel ends as rootless containers reachable only
+through a **host-published UDP port** works for the handshake and then stops
+forwarding: the server's receive counter freezes while the client retransmits. OpenVPN
+behaves identically in the same rig. The W0 spike used a shared podman network between
+the two containers for exactly this reason, so the remaining verification is to test the
+datapath that way rather than through published ports.
+
 ## Secrets
 
 A secret is referenced by path to an **encrypted** file. spawn decrypts it into a tmpfs
