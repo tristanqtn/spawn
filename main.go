@@ -472,6 +472,9 @@ func main() {
 		}
 		tb.print()
 		fmt.Printf("\n%d file(s) changed\n", len(ch))
+	case "mcp":
+		// Speaks MCP over stdio, so nothing but protocol may reach stdout.
+		mcpMain()
 	case "audit":
 		if err := requireDeps(depPodman); err != nil {
 			die(err)

@@ -25,6 +25,7 @@ var commands = map[string]string{
 	"rm":         "destroy an env and its rootfs",
 	"diff":       "show every file the env changed",
 	"audit":      "show which destinations the egress policy refused",
+	"mcp":        "serve MCP over stdio, so an agent can run its own envs",
 	"snapshot":   "copy the env's filesystem aside",
 	"snapshots":  "list an env's snapshots",
 	"restore":    "put a snapshot back",
@@ -39,7 +40,7 @@ var commands = map[string]string{
 // commandOrder is the order the help screen uses: roughly the order a new user meets
 // them, not alphabetical.
 var commandOrder = []string{"init", "up", "ls", "stop", "rm", "diff", "audit", "snapshot",
-	"snapshots", "restore", "fork", "check", "doctor", "profiles", "completion",
+	"snapshots", "restore", "fork", "check", "doctor", "mcp", "profiles", "completion",
 	"version", "help"}
 
 const bashCompletion = `# spawn bash completion.  Install with:
@@ -173,7 +174,7 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return []string{"--force:overwrite files that are already there"}
-	case "ls", "version", "help":
+	case "ls", "version", "help", "mcp":
 		return nil
 	}
 	if len(words) == 1 {

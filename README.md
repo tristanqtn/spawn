@@ -263,6 +263,36 @@ There is no base image, so there is no `/etc/passwd` either — and without it e
 login shell since `/bin/bash` does not exist. Declare any of those in `files` to
 override it.
 
+## For an agent: `spawn mcp`
+
+```
+spawn mcp        # MCP server over stdio
+```
+
+Eight tools: `spawn_create`, `spawn_exec`, `spawn_diff`, `spawn_audit`,
+`spawn_snapshot`, `spawn_restore`, `spawn_list`, `spawn_destroy`.
+
+It is a subcommand rather than a separate binary because it needs every bit of the
+manifest, policy and lifecycle code that is already here; a second module would be a
+second release to keep in step for no one's benefit.
+
+**Agent envs are deny-by-default on egress.** An agent that needs the network names the
+addresses, and everything refused lands in the audit log it can read back. The tool
+descriptions are part of the design: they are the only thing telling an agent *when*
+reaching for a sandbox is the right move.
+
+`test/agent-loop.py` drives the whole thing with no human in the loop — provision, run a
+task, inspect what changed, see what was refused, snapshot, break it, restore, destroy —
+and asserts each step. Two bugs it found, both invisible from the CLI:
+
+- Everything in spawn reports progress with `fmt.Printf`, which writes to stdout — and
+  on this transport **stdout carries the protocol**, so one "removed env …" line made the
+  agent see malformed JSON. In MCP mode `os.Stdout` now points at stderr and the real
+  handle is kept for protocol only.
+- `spawn_restore` removes the container before swapping the filesystem, so the next
+  `spawn_exec` reported "no environment named …" and the agent had no way to recover. The
+  server now records the manifest it created the env from and brings it back.
+
 ## Snapshots, forks and diffs
 
 ```
