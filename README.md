@@ -164,7 +164,8 @@ belongs in the manifest.
 
 ## Requirements
 
-Rootless podman and a multi-user nix install on the host. Linux and WSL2 are the
+Rootless podman and a multi-user nix install on the host. Every command that needs one
+checks for it first and tells you how to get it; `spawn doctor` checks the lot. Linux and WSL2 are the
 supported hosts; macOS is unvalidated (see `../ROADMAP.md`).
 
 **On Windows, spawn runs inside WSL2** — there is no native Windows build and there

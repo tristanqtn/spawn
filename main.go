@@ -262,7 +262,12 @@ func (m *Manifest) build() (string, error) {
 func (m *Manifest) check() (string, error) {
 	out, err := nixCmd("eval", "--impure", "--raw", "--expr", "("+m.expr()+").drvPath").CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		// With no output there is nothing to show, and reporting only "does not
+		// evaluate" blames the manifest for a missing nix.
+		if msg := strings.TrimSpace(string(out)); msg != "" {
+			return "", fmt.Errorf("%s", msg)
+		}
+		return "", fmt.Errorf("nix eval failed: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
@@ -342,6 +347,9 @@ func main() {
 			die(err)
 		}
 	case "check":
+		if err := requireDeps(depNix); err != nil {
+			die(err)
+		}
 		path, _ := manifestArg(args)
 		m := load(path)
 		drv, err := m.check()
@@ -365,6 +373,9 @@ func main() {
 		t.print()
 		fmt.Println(ui.paint(ui.green, "evaluates; nothing was downloaded"))
 	case "up":
+		if err := requireDeps(depNix, depPodman); err != nil {
+			die(err)
+		}
 		path, rest := manifestArg(args)
 		abs, err := filepath.Abs(path)
 		if err != nil {
@@ -383,14 +394,23 @@ func main() {
 			die(err)
 		}
 	case "ls":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
 		if err := ls(); err != nil {
 			die(err)
 		}
 	case "stop":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
 		if err := stop(arg1(args, "stop")); err != nil {
 			die(err)
 		}
 	case "rm":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
 		purge := len(args) > 0 && args[0] == "--purge"
 		if purge {
 			args = args[1:]

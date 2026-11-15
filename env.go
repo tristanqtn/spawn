@@ -255,9 +255,13 @@ func rm(name string, purge bool) error {
 	if inspect(name, "{{.Id}}") == "" && !dirExists(envDir(name)) && !dirExists(persistDir(name)) {
 		return fmt.Errorf("no env named %q", name)
 	}
-	if _, err := podmanOut("rm", "-f", cname(name)); err != nil {
-		// A rootfs with no container is still worth cleaning up.
-		fmt.Fprintln(os.Stderr, "spawn:", err)
+	// Remove the container BEFORE touching the rootfs, and stop if it cannot be
+	// removed. Deleting the rootfs out from under a live container loses data and
+	// leaves an orphan, and reporting success while doing it is worse still.
+	if existed := inspect(name, "{{.Id}}") != ""; existed {
+		if _, err := podmanOut("rm", "-f", cname(name)); err != nil {
+			return fmt.Errorf("could not remove the container, so the rootfs was left alone: %w", err)
+		}
 	}
 	clearSecrets(name)
 	if err := os.RemoveAll(envDir(name)); err != nil {
