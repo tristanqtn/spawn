@@ -112,6 +112,13 @@ func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error
 		return nil, "", err
 	}
 	args = append(args, pers...)
+	// Secrets are staged on tmpfs and mounted read-only. The flags name the stage
+	// directory, never the plaintext, so the fingerprint below stays secret-free.
+	sec, err := m.stageSecrets(filepath.Dir(manifestPath))
+	if err != nil {
+		return nil, "", err
+	}
+	args = append(args, sec...)
 	// PID 1 just has to stay alive; every real command arrives via podman exec.
 	args = append(args, root, prof+"/bin/sleep", "infinity")
 
@@ -207,6 +214,9 @@ func stop(name string) error {
 		return fmt.Errorf("no env named %q", name)
 	}
 	_, err := podmanOut("stop", cname(name))
+	// The mount only means anything while the env runs, so do not leave plaintext
+	// sitting in tmpfs afterwards.
+	clearSecrets(name)
 	return err
 }
 
@@ -222,6 +232,7 @@ func rm(name string, purge bool) error {
 		// A rootfs with no container is still worth cleaning up.
 		fmt.Fprintln(os.Stderr, "spawn:", err)
 	}
+	clearSecrets(name)
 	if err := os.RemoveAll(envDir(name)); err != nil {
 		return err
 	}

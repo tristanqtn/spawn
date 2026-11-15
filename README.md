@@ -24,6 +24,10 @@ pids = 512
 
 [hooks]
 post_start = ["echo ready > /root/.ready"]
+
+[secrets]
+vpn   = "age:~/secrets/htb.ovpn.age"
+token = "sops:./secrets.yaml"
 ```
 
 Change any of it and the next `spawn up` recreates the container to match, keeping the
@@ -80,6 +84,30 @@ tools = ["burpsuite", "wpscan", "volatility3"]
 These are manifest fields rather than an environment variable spawn sets for you,
 because allowing unfree or known-vulnerable code is your decision and should be visible
 when someone reads the file.
+
+## Secrets
+
+A secret is referenced by path to an **encrypted** file. spawn decrypts it into a tmpfs
+directory (mode 0700, files 0600) and bind-mounts that read-only at `/run/secrets/<name>`:
+
+```
+age:<path>    age-encrypted, decrypted with SPAWN_AGE_IDENTITY or
+              ~/.config/sops/age/keys.txt
+sops:<path>   anything sops can decrypt
+file:<path>   an unencrypted file, named honestly for what it is
+```
+
+`age` and `sops` come from the **same pinned nixpkgs** as your tools, so nothing has to
+be installed on the host and their versions move only when the pin does.
+
+The rule this enforces: plaintext never reaches the nix store, a container image or
+spawn's own state. `/nix/store` is world-readable and permanent, so a leak there is not
+a bug you fix later. One test asserts exactly that — it encrypts a canary value, reads it
+inside a running env, then greps for it across `/nix/store`, spawn's state directory and
+the container's metadata. Staged plaintext is removed when the env stops.
+
+Requires `XDG_RUNTIME_DIR` to be a tmpfs. If it isn't, spawn refuses rather than quietly
+writing plaintext to disk.
 
 ## How an env is actually made
 

@@ -64,6 +64,10 @@ type Manifest struct {
 	Ports   []string          `toml:"ports"`
 	Caps    []string          `toml:"caps"`
 	Devices []string          `toml:"devices"`
+	// Secrets, referenced by path to an ENCRYPTED file and exposed read-only at
+	// /run/secrets/<name>. Never a nix store path: /nix/store is world-readable and
+	// permanent. See secrets.go.
+	Secrets map[string]string `toml:"secrets"`
 	// Directories that outlive the env itself. The rootfs already survives a restart
 	// and a manifest change, so what persist buys is surviving `spawn rm` and a
 	// rebuild from scratch: a tool upgrade should never cost you your notes.
@@ -209,6 +213,12 @@ func nixCmd(args ...string) *exec.Cmd {
 	c := exec.Command("nix", args...)
 	c.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
 	return c
+}
+
+// runQuiet runs a command and returns stdout only. Stderr is deliberately dropped by
+// the caller when the output could contain secret material.
+func runQuiet(bin string, args ...string) ([]byte, error) {
+	return exec.Command(bin, args...).Output()
 }
 
 // build resolves the manifest to a single nix store path.
