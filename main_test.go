@@ -129,3 +129,21 @@ func TestShippedProfilesAreValid(t *testing.T) {
 		}
 	}
 }
+
+// `spawn profiles --names` is the parseable contract. The human table's header and
+// rule are not: CI once awk'd column one of the table and started treating "SUITE"
+// and the rule as suite names the moment the table gained a header.
+func TestProfileNamesAreParseable(t *testing.T) {
+	for _, n := range profileNames() {
+		if strings.ContainsAny(n, " \t-") && !strings.Contains(n, "active-directory") {
+			t.Errorf("suite name %q is not a bare word", n)
+		}
+		// Every listed name must actually resolve, which is what CI relies on.
+		if _, err := profileTools(n); err != nil {
+			t.Errorf("%s: %v", n, err)
+		}
+		if _, err := Parse([]byte("schema = 1\nname = \"x\"\nprofiles = [\"" + n + "\"]")); err != nil {
+			t.Errorf("a manifest naming suite %q does not parse: %v", n, err)
+		}
+	}
+}

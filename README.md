@@ -54,6 +54,10 @@ spawn profiles      # list the built-in suites
 spawn completion    # print a shell completion script
 ```
 
+Tables are for people. `spawn profiles --names` prints one suite name per line with no
+header or rule, and that is the form to parse in a script — the table's layout is not a
+contract.
+
 Run `spawn` with no arguments for the help screen.
 
 ## Shell completion

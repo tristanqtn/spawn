@@ -134,7 +134,12 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return manifestsHere()
-	case "ls", "profiles", "version", "help":
+	case "profiles":
+		if len(words) > 1 {
+			return nil
+		}
+		return []string{"--names:print just the suite names, one per line"}
+	case "ls", "version", "help":
 		return nil
 	}
 	if len(words) == 1 {

@@ -43,7 +43,8 @@ jobs:
       - name: every suite evaluates with no licence opt-in
         run: |
           fail=0
-          for p in $(./spawn profiles | awk '{print $1}'); do
+          # --names, not the human table: its header and rule are not contractual.
+          for p in $(./spawn profiles --names); do
             printf 'schema = 1\nname = "%s"\nprofiles = ["%s"]\n' "$p" "$p" > /tmp/$p.toml
             ./spawn check /tmp/$p.toml || fail=1
           done

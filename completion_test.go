@@ -50,9 +50,14 @@ func TestCompletionCandidates(t *testing.T) {
 		t.Error("stop should not offer --purge")
 	}
 
+	// profiles offers its machine-readable form, which is what CI consumes.
+	if !hasCandidate(candidates([]string{"profiles"}), "--names") {
+		t.Error("profiles should offer --names")
+	}
+
 	// A command that takes no arguments offers nothing, rather than falling back to
 	// the command list again.
-	for _, cmd := range []string{"ls", "profiles", "version", "help"} {
+	for _, cmd := range []string{"ls", "version", "help"} {
 		if got := candidates([]string{cmd}); got != nil {
 			t.Errorf("%s should offer no arguments, got %v", cmd, got)
 		}

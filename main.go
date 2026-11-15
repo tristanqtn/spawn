@@ -325,6 +325,19 @@ func main() {
 		// Hidden: this is what the shell completion scripts call.
 		complete(args)
 	case "profiles":
+		// --names is the stable, parseable form. The table is for humans and its
+		// header and rule are not contractual: a CI step that awk'd the table
+		// started treating "SUITE" and "-----" as suite names the moment the table
+		// gained a header.
+		if len(args) == 1 && args[0] == "--names" {
+			for _, n := range profileNames() {
+				fmt.Println(n)
+			}
+			return
+		}
+		if len(args) > 0 {
+			die(fmt.Errorf("usage: spawn profiles [--names]"))
+		}
 		if err := listProfiles(); err != nil {
 			die(err)
 		}
