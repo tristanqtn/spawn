@@ -502,6 +502,21 @@ nix profile add --profile /root/.nix-profile nixpkgs#ripgrep
 Writes go through the host daemon into the shared store. Anything you want *next time*
 belongs in the manifest.
 
+## What is tested
+
+[`test/VALIDATION.md`](test/VALIDATION.md) lists every test against the feature it
+covers. It cannot fall behind the code: `TestValidationMatrixIsComplete` fails if a test
+is missing from it, and also if it names one that no longer exists.
+
+```
+go test -short ./...   unit tests, seconds
+go test ./...          adds the integration tests (skip without podman + nix)
+test/agent-loop.py     the agent loop over MCP, 17 assertions
+test/vpn-datapath.sh   a real payload over OpenVPN and WireGuard
+```
+
+All four run in CI.
+
 ## Requirements
 
 Rootless podman and a multi-user nix install on the host. Every command that needs one

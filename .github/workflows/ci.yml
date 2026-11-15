@@ -50,7 +50,20 @@ jobs:
           done
           exit $fail
       - name: integration tests against a real runtime
-        # Lifecycle, persist-survives-rm and the secret leak test all need podman
-        # and a nix store, so they only run here. They skip rather than fail if
-        # either is missing.
+        # Lifecycle, persist-survives-rm, the leak tests and the MCP tool paths all
+        # need podman and a nix store, so they only run here. They skip rather than
+        # fail if either is missing.
         run: go test -v ./...
+      - name: install the binary for the scripted suites
+        run: |
+          go build -o /usr/local/bin/spawn .
+          spawn version
+      - name: agent loop over MCP
+        # The M4 exit criterion: an agent provisioning, using and destroying its own
+        # environment with no human in the loop.
+        run: python3 test/agent-loop.py
+      - name: VPN datapath, OpenVPN and WireGuard
+        # The M3 deliverable: a real payload crossing a real tunnel with the kill
+        # switch in force. Needs a second env as the server, which is why it is a
+        # script rather than a Go test.
+        run: bash test/vpn-datapath.sh
