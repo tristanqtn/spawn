@@ -153,6 +153,12 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	if err := m.validateHostPaths(filepath.Dir(manifestPath)); err != nil {
 		return err
 	}
+	// Fail here rather than let podman fail with an unreadable conmon error.
+	if fstype, why := checkRootfsFS(); why != "" {
+		return fmt.Errorf("the env directory %s is on %s (%s), which cannot hold a container rootfs. "+
+			"Set XDG_DATA_HOME to a path on the Linux filesystem, e.g. XDG_DATA_HOME=$HOME/.local/share",
+			dataDir(), fstype, why)
+	}
 	prof, err := m.build()
 	if err != nil {
 		return err

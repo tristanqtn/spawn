@@ -123,6 +123,17 @@ func doctor(manifestPath string) error {
 		}
 	}
 
+	// --- where envs are stored ---------------------------------------------------
+	if fstype, why := checkRootfsFS(); why != "" {
+		add("env storage", bad,
+			"%s is on %s (%s); podman cannot start a rootfs there. Set XDG_DATA_HOME to a path on the Linux filesystem",
+			dataDir(), fstype, why)
+	} else if fstype == "" {
+		add("env storage", warn, "could not determine the filesystem under %s", dataDir())
+	} else {
+		add("env storage", ok, "%s on %s", dataDir(), fstype)
+	}
+
 	// --- secrets -----------------------------------------------------------------
 	if _, err := secretsStage("probe"); err != nil {
 		add("secrets", bad, "%s", err)

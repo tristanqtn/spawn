@@ -146,6 +146,18 @@ belongs in the manifest.
 Rootless podman and a multi-user nix install on the host. Linux and WSL2 are the
 supported hosts; macOS is unvalidated (see `../ROADMAP.md`).
 
+**On Windows, spawn runs inside WSL2** — there is no native Windows build and there
+should not be one: an env is a rootless podman container over a Linux nix store. The
+source cross-compiles for `GOOS=windows`, but that binary would have no `/nix`, no
+podman and no `/dev/net/tun`. Clone and build inside your WSL distro.
+
+The repository can live on a Windows drive (`/mnt/c/...`) and build fine from there, but
+**an env's rootfs cannot**. drvfs and 9p lack the ownership and xattr semantics a
+container rootfs needs, and podman fails with
+`container create failed (no logs from conmon)`, which names nothing you did. spawn
+refuses up front instead, and `spawn doctor` reports the filesystem your env directory
+sits on.
+
 ## Status
 
 M1 is complete: `up`, `check`, `ls`, `stop`, `rm` and `profiles` all work on Linux and
