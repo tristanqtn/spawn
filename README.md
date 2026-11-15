@@ -13,6 +13,7 @@ tools = ["masscan"]
 env     = { LAB = "htb" }
 mounts  = ["./loot:/loot", "~/.ssh:/root/.ssh:ro"]   # relative to THIS file
 ports   = ["127.0.0.1:18080:8080"]
+persist = ["/loot", "/root/.msf4"]                   # outlives `spawn rm`
 caps    = ["NET_ADMIN", "NET_RAW"]
 devices = ["/dev/net/tun"]
 
@@ -119,5 +120,18 @@ WSL2. VPN, secrets, declared mounts and snapshots are later milestones — see
 `nixpkgs` field still rebuilds identically months later. The pin moves when you upgrade
 spawn, not when nixpkgs does. Override it per manifest to pick another.
 
-Still rough: the whole rootfs persists, but nothing is yet declarable as persistent in
-the manifest.
+`persist` is the one thing that outlives the env. The rootfs already survives a restart
+and a manifest change, so what `persist` buys is surviving `spawn rm` and a rebuild from
+scratch — a tool upgrade should never cost you your notes. Its host storage sits outside
+the env directory and mirrors the container layout, so you can browse it without spawn:
+
+```
+~/.local/share/spawn/persist/<env>/loot/...
+```
+
+`spawn rm` keeps it and tells you where it is; `spawn rm --purge` is the explicit way to
+lose it. Entries are **directories** — podman creates a host directory for a missing bind
+source, so a single file would silently become one; persist its parent instead.
+
+A test asserts both halves of this: declared data survives `rm` and a rebuild, and
+undeclared data does not — otherwise the env is not disposable.

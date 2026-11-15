@@ -28,8 +28,8 @@ func TestEnvLifecycle(t *testing.T) {
 	}
 	m := parse("schema = 1\nname = \"spawnselftest\"\ntools = [\"nmap\"]")
 
-	rm(m.Name) // a leftover env from a failed run would make this meaningless
-	t.Cleanup(func() { rm(m.Name) })
+	rm(m.Name, true) // a leftover env from a failed run would make this meaningless
+	t.Cleanup(func() { rm(m.Name, true) })
 
 	if err := up(m, path, []string{"bash", "-c", "echo kept > /root/marker"}); err != nil {
 		t.Fatal("first up:", err)
@@ -53,7 +53,7 @@ func TestEnvLifecycle(t *testing.T) {
 		t.Fatal("recreate on manifest change lost data or the new tool:", err)
 	}
 
-	if err := rm(m.Name); err != nil {
+	if err := rm(m.Name, true); err != nil {
 		t.Fatal("rm:", err)
 	}
 	if inspect(m.Name, "{{.Id}}") != "" {
@@ -61,5 +61,56 @@ func TestEnvLifecycle(t *testing.T) {
 	}
 	if dirExists(envDir(m.Name)) {
 		t.Error("rootfs still present after rm")
+	}
+}
+
+// M2's exit criterion: destroy an env, rebuild it from scratch, and lose nothing that
+// was declared. Undeclared state is expected to be gone -- that is what disposable
+// means -- so this asserts both halves.
+func TestPersistSurvivesRmAndRebuild(t *testing.T) {
+	if testing.Short() {
+		t.Skip("needs podman and a nix store")
+	}
+	for _, bin := range []string{"podman", "nix"} {
+		if _, err := exec.LookPath(bin); err != nil {
+			t.Skipf("%s not on PATH", bin)
+		}
+	}
+
+	const path = "/tmp/spawn-persist-test.toml"
+	m, err := Parse([]byte("schema = 1\nname = \"spawnpersisttest\"\ntools = [\"nmap\"]\n" +
+		"persist = [\"/loot\"]"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rm(m.Name, true)
+	t.Cleanup(func() { rm(m.Name, true) })
+
+	if err := up(m, path, []string{"bash", "-c",
+		"echo declared > /loot/keep.txt; echo undeclared > /root/throwaway.txt"}); err != nil {
+		t.Fatal("first up:", err)
+	}
+
+	// Destroy the env completely, short of --purge.
+	if err := rm(m.Name, false); err != nil {
+		t.Fatal("rm:", err)
+	}
+	if dirExists(envDir(m.Name)) {
+		t.Fatal("rootfs survived rm")
+	}
+
+	if err := up(m, path, []string{"test", "-f", "/loot/keep.txt"}); err != nil {
+		t.Error("declared persist did not survive rm and rebuild:", err)
+	}
+	if err := up(m, path, []string{"test", "-f", "/root/throwaway.txt"}); err == nil {
+		t.Error("undeclared state survived rm, so the env is not disposable")
+	}
+
+	// --purge is the explicit way to lose it.
+	if err := rm(m.Name, true); err != nil {
+		t.Fatal("purge:", err)
+	}
+	if dirExists(persistDir(m.Name)) {
+		t.Error("persisted data survived --purge")
 	}
 }

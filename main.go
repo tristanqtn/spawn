@@ -64,6 +64,10 @@ type Manifest struct {
 	Ports   []string          `toml:"ports"`
 	Caps    []string          `toml:"caps"`
 	Devices []string          `toml:"devices"`
+	// Directories that outlive the env itself. The rootfs already survives a restart
+	// and a manifest change, so what persist buys is surviving `spawn rm` and a
+	// rebuild from scratch: a tool upgrade should never cost you your notes.
+	Persist []string `toml:"persist"`
 	Limits  struct {
 		CPUs   string `toml:"cpus"`
 		Memory string `toml:"memory"`
@@ -237,7 +241,7 @@ const usage = `usage: spawn up    [manifest.toml] [cmd...]   build an env and en
        spawn check [manifest.toml]           evaluate it, download nothing
        spawn ls                              list envs
        spawn stop <name>                     stop an env, keeping its rootfs
-       spawn rm   <name>                     destroy an env and its rootfs
+       spawn rm [--purge] <name>             destroy an env; --purge drops persisted data
        spawn profiles                        list the built-in suites`
 
 // manifestArg pulls an optional manifest path off the front of the args.
@@ -315,7 +319,11 @@ func main() {
 			die(err)
 		}
 	case "rm":
-		if err := rm(arg1(args, "rm")); err != nil {
+		purge := len(args) > 0 && args[0] == "--purge"
+		if purge {
+			args = args[1:]
+		}
+		if err := rm(arg1(args, "rm [--purge]"), purge); err != nil {
 			die(err)
 		}
 	default:

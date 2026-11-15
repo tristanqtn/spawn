@@ -107,6 +107,11 @@ func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error
 		return nil, "", err
 	}
 	args = append(args, rt...)
+	pers, err := m.persistArgs()
+	if err != nil {
+		return nil, "", err
+	}
+	args = append(args, pers...)
 	// PID 1 just has to stay alive; every real command arrives via podman exec.
 	args = append(args, root, prof+"/bin/sleep", "infinity")
 
@@ -205,20 +210,33 @@ func stop(name string) error {
 	return err
 }
 
-// rm destroys the container and the env's writable rootfs. Anything the env wrote and
-// the manifest does not declare is gone, which is the point of a disposable env -- but
-// say what is being deleted, because the manifest cannot bring it back.
-func rm(name string) error {
-	if inspect(name, "{{.Id}}") == "" && !dirExists(envDir(name)) {
+// rm destroys the container and the env's writable rootfs. Anything the env wrote that
+// the manifest does not declare is gone, which is the point of a disposable env.
+// Directories named in persist are KEPT unless purge is set, so rebuilding from
+// scratch costs nothing you declared you wanted to keep.
+func rm(name string, purge bool) error {
+	if inspect(name, "{{.Id}}") == "" && !dirExists(envDir(name)) && !dirExists(persistDir(name)) {
 		return fmt.Errorf("no env named %q", name)
 	}
 	if _, err := podmanOut("rm", "-f", cname(name)); err != nil {
 		// A rootfs with no container is still worth cleaning up.
 		fmt.Fprintln(os.Stderr, "spawn:", err)
 	}
-	d := envDir(name)
-	fmt.Printf("removed env %s and its rootfs at %s\n", name, d)
-	return os.RemoveAll(d)
+	if err := os.RemoveAll(envDir(name)); err != nil {
+		return err
+	}
+	fmt.Printf("removed env %s and its rootfs\n", name)
+
+	p := persistDir(name)
+	if !dirExists(p) {
+		return nil
+	}
+	if purge {
+		fmt.Printf("purged persisted data at %s\n", p)
+		return os.RemoveAll(p)
+	}
+	fmt.Printf("kept persisted data at %s (spawn rm --purge %s to delete it)\n", p, name)
+	return nil
 }
 
 func dirExists(p string) bool {

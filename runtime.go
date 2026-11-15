@@ -62,7 +62,58 @@ func (m *Manifest) validateRuntime() error {
 	if m.Limits.PIDs < 0 {
 		return fmt.Errorf("limits.pids cannot be negative")
 	}
+	for _, p := range m.Persist {
+		if err := validPersistPath(p); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// Mounting over these would break the env rather than preserve anything: /nix is the
+// shared store, and the rest are either kernel filesystems or the few directories the
+// rootfs needs in order to start at all.
+var unpersistable = []string{"/", "/nix", "/proc", "/sys", "/dev", "/etc", "/tmp"}
+
+// validPersistPath checks one persist entry. Entries are DIRECTORIES: podman creates a
+// host directory for a missing bind source, so a single file would silently become a
+// directory and shadow itself. To keep one file, persist its parent.
+func validPersistPath(p string) error {
+	if !strings.HasPrefix(p, "/") {
+		return fmt.Errorf("persist %q must be an absolute path inside the env", p)
+	}
+	clean := strings.TrimSuffix(filepath.ToSlash(filepath.Clean(p)), "/")
+	if clean == "" {
+		clean = "/"
+	}
+	for _, bad := range unpersistable {
+		if clean == bad {
+			return fmt.Errorf("persist %q: %s cannot be persisted, it is needed to start the env", p, bad)
+		}
+	}
+	if strings.HasPrefix(clean, "/nix/") {
+		return fmt.Errorf("persist %q: /nix is the shared store and is read-only by design", p)
+	}
+	return nil
+}
+
+// persistDir is where one env's persisted directories live on the host. It sits
+// OUTSIDE envDir so that `spawn rm`, which deletes the rootfs, does not take it.
+func persistDir(name string) string { return filepath.Join(dataDir(), "persist", name) }
+
+// persistArgs creates the host side of each persisted directory and renders the mounts.
+// The host layout mirrors the container's, so the data is browsable without spawn.
+func (m *Manifest) persistArgs() ([]string, error) {
+	var a []string
+	for _, p := range m.Persist {
+		clean := strings.TrimSuffix(filepath.ToSlash(filepath.Clean(p)), "/")
+		host := filepath.Join(persistDir(m.Name), strings.TrimPrefix(clean, "/"))
+		if err := os.MkdirAll(host, 0o755); err != nil {
+			return nil, err
+		}
+		a = append(a, "-v", filepath.ToSlash(host)+":"+clean)
+	}
+	return a, nil
 }
 
 // splitMount parses "host:container[:options]" into its host and container halves.
