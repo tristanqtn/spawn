@@ -22,8 +22,12 @@ import (
 
 const schemaVersion = 1
 
-// ponytail: a branch ref, not a pin. M2 locks it to a rev.
-const defaultNixpkgs = "github:NixOS/nixpkgs/nixos-unstable"
+// A revision, never a branch: "nixos-unstable" would resolve to something different
+// next month, and rebuilding identically months later is the whole point. This
+// constant IS the lock -- it moves when spawn is upgraded, not when nixpkgs is, so a
+// manifest with no nixpkgs field still pins. Override per manifest to pick another.
+// nixos-unstable as of 2026-11-12.
+const defaultNixpkgs = "github:NixOS/nixpkgs/d5cc6833999746cffdfe0598f7bc801a57b887a9"
 
 // With no base image there is no /bin/sh and no /etc/ssl, so every env gets a
 // userland. cacert is not optional: without it every TLS client in the env fails.
@@ -42,6 +46,13 @@ type Manifest struct {
 	Profiles []string `toml:"profiles"`
 	Tools    []string `toml:"tools"`
 	Nixpkgs  string   `toml:"nixpkgs"`
+
+	// Licence and security opt-ins. These are manifest fields rather than an
+	// environment variable spawn sets for you, because allowing unfree or insecure
+	// code is the user's decision and should be visible in review. burpsuite,
+	// wpscan and volatility3 need the first; the archived bloodhound needs the second.
+	AllowUnfree   bool     `toml:"allow_unfree"`
+	AllowInsecure []string `toml:"allow_insecure"`
 
 	resolved []string // baseTools + every profile's tools + tools, deduplicated
 }
@@ -124,6 +135,14 @@ func Parse(b []byte) (*Manifest, error) {
 			return nil, err
 		}
 	}
+	// permittedInsecurePackages entries are versioned names like "bloodhound-4.3.1".
+	// nixStrings quotes them, so this is shape validation rather than the injection
+	// guard, but a typo here fails late and confusingly otherwise.
+	for _, p := range m.AllowInsecure {
+		if !attrRe.MatchString(p) {
+			return nil, fmt.Errorf("allow_insecure %q is not a versioned package name", p)
+		}
+	}
 	if m.Nixpkgs == "" {
 		m.Nixpkgs = defaultNixpkgs
 	}
@@ -137,10 +156,27 @@ func nixSystem() string {
 	return "x86_64-linux"
 }
 
+// nixStrings renders a Go slice as a nix list of quoted strings.
+func nixStrings(ss []string) string {
+	q := make([]string, len(ss))
+	for i, s := range ss {
+		q[i] = fmt.Sprintf("%q", s)
+	}
+	return strings.Join(q, " ")
+}
+
+// expr imports nixpkgs rather than using the flake's legacyPackages, because
+// legacyPackages carries a fixed config and the licence opt-ins have to be set here.
 func (m *Manifest) expr() string {
-	return fmt.Sprintf(`let fl = builtins.getFlake %q; pkgs = fl.legacyPackages.%s;
+	return fmt.Sprintf(`let
+  fl = builtins.getFlake %q;
+  pkgs = import fl.outPath {
+    system = %q;
+    config = { allowUnfree = %t; permittedInsecurePackages = [ %s ]; };
+  };
 in pkgs.buildEnv { name = "spawn-%s"; paths = with pkgs; [ %s ]; }`,
-		m.Nixpkgs, nixSystem(), m.Name, strings.Join(m.resolved, " "))
+		m.Nixpkgs, nixSystem(), m.AllowUnfree, nixStrings(m.AllowInsecure),
+		m.Name, strings.Join(m.resolved, " "))
 }
 
 func nixCmd(args ...string) *exec.Cmd {

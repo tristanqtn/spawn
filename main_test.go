@@ -15,6 +15,8 @@ func TestParseRejects(t *testing.T) {
 		"attr injection":    "schema = 1\nname = \"x\"\ntools = [\"nmap ]; evil = \"]",
 		"unknown profile":   "schema = 1\nname = \"x\"\nprofiles = [\"nope\"]",
 		"profile traversal": "schema = 1\nname = \"x\"\nprofiles = [\"../go\"]",
+		"bad allow_insecure": "schema = 1\nname = \"x\"\ntools = [\"nmap\"]\n" +
+			"allow_insecure = [\"a\\\" ]; evil = \\\"\"]",
 	}
 	for why, src := range bad {
 		if _, err := Parse([]byte(src)); err == nil {
@@ -38,6 +40,50 @@ func TestParseResolves(t *testing.T) {
 			t.Errorf("expr missing %q:\n%s", want, e)
 		}
 	}
+}
+
+// Reproducibility is the pitch, so the default must be a revision. A branch ref would
+// resolve to something different next month and nothing would notice.
+func TestDefaultNixpkgsIsPinnedToARevision(t *testing.T) {
+	rev := strings.TrimPrefix(defaultNixpkgs, "github:NixOS/nixpkgs/")
+	if len(rev) != 40 {
+		t.Fatalf("default nixpkgs is not a 40-char revision: %q", defaultNixpkgs)
+	}
+	for _, c := range rev {
+		if !strings.ContainsRune("0123456789abcdef", c) {
+			t.Fatalf("default nixpkgs revision is not hex: %q", rev)
+		}
+	}
+}
+
+func TestLicenceOptIns(t *testing.T) {
+	// Off unless the manifest says otherwise: allowing unfree code is the user's call.
+	off := mustParse(t, "schema = 1\nname = \"x\"\ntools = [\"nmap\"]")
+	if !strings.Contains(off.expr(), "allowUnfree = false") {
+		t.Error("allowUnfree should default to false")
+	}
+	if !strings.Contains(off.expr(), "permittedInsecurePackages = [  ]") {
+		t.Errorf("expected an empty insecure list:\n%s", off.expr())
+	}
+
+	on := mustParse(t, "schema = 1\nname = \"x\"\ntools = [\"burpsuite\"]\n"+
+		"allow_unfree = true\nallow_insecure = [\"bloodhound-4.3.1\"]")
+	e := on.expr()
+	if !strings.Contains(e, "allowUnfree = true") {
+		t.Error("allow_unfree not propagated")
+	}
+	if !strings.Contains(e, `permittedInsecurePackages = [ "bloodhound-4.3.1" ]`) {
+		t.Errorf("allow_insecure not propagated:\n%s", e)
+	}
+}
+
+func mustParse(t *testing.T, src string) *Manifest {
+	t.Helper()
+	m, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m
 }
 
 func TestProfilesMergeAndDedup(t *testing.T) {

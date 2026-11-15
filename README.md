@@ -40,8 +40,18 @@ Suites compose: listing several merges and deduplicates their tools, and `tools`
 adds anything else from nixpkgs on top.
 
 Burp Suite, wpscan and volatility3 are **absent on purpose** — all three are unfree in
-nixpkgs, and an unfree package in a default suite breaks every build of it until a
-manifest can opt in. Add them by hand once that field exists.
+nixpkgs, and one unfree attribute breaks the whole suite's evaluation. Opt in per
+manifest and add them yourself:
+
+```toml
+allow_unfree = true
+allow_insecure = ["bloodhound-4.3.1"]   # by versioned name, not a blanket switch
+tools = ["burpsuite", "wpscan", "volatility3"]
+```
+
+These are manifest fields rather than an environment variable spawn sets for you,
+because allowing unfree or known-vulnerable code is your decision and should be visible
+when someone reads the file.
 
 ## How an env is actually made
 
@@ -78,7 +88,9 @@ M1 is complete: `up`, `check`, `ls`, `stop`, `rm` and `profiles` all work on Lin
 WSL2. VPN, secrets, declared mounts and snapshots are later milestones — see
 `../ROADMAP.md`.
 
-Two things deliberately left rough: the module pins `nixpkgs` to the `nixos-unstable`
-branch rather than a revision, so builds are reproducible over days but not months; and
-only `/root` and the rest of the rootfs persist, with nothing yet declarable as
-persistent in the manifest.
+`nixpkgs` is pinned to a **revision**, baked into the binary, so a manifest with no
+`nixpkgs` field still rebuilds identically months later. The pin moves when you upgrade
+spawn, not when nixpkgs does. Override it per manifest to pick another.
+
+Still rough: the whole rootfs persists, but nothing is yet declarable as persistent in
+the manifest.
