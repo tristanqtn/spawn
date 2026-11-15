@@ -30,6 +30,8 @@ var commands = map[string]string{
 	"snapshots":  "list an env's snapshots",
 	"restore":    "put a snapshot back",
 	"fork":       "copy an env into a new one",
+	"export":     "write an env to a portable archive",
+	"import":     "rebuild an env from an archive",
 	"doctor":     "check this host, and a manifest against it",
 	"profiles":   "list the built-in suites",
 	"completion": "print a shell completion script",
@@ -40,7 +42,7 @@ var commands = map[string]string{
 // commandOrder is the order the help screen uses: roughly the order a new user meets
 // them, not alphabetical.
 var commandOrder = []string{"init", "up", "ls", "stop", "rm", "diff", "audit", "snapshot",
-	"snapshots", "restore", "fork", "check", "doctor", "mcp", "profiles", "completion",
+	"snapshots", "restore", "fork", "export", "import", "check", "doctor", "mcp", "profiles", "completion",
 	"version", "help"}
 
 const bashCompletion = `# spawn bash completion.  Install with:
@@ -124,7 +126,7 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return envNames("running")
-	case "diff", "audit", "snapshot", "snapshots", "fork":
+	case "diff", "audit", "snapshot", "snapshots", "fork", "export":
 		if len(words) > 1 {
 			return nil
 		}

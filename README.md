@@ -296,6 +296,25 @@ and asserts each step. Two bugs it found, both invisible from the CLI:
   `spawn_exec` reported "no environment named …" and the agent had no way to recover. The
   server now records the manifest it created the env from and brings it back.
 
+## Taking an env elsewhere
+
+```
+spawn export lab lab.tar.gz      # 2,324 bytes for a real env
+spawn import lab.tar.gz [name]   # rebuilds it, work intact
+```
+
+The archive holds the manifest and whatever the env wrote — and deliberately **not** the
+nix closure. The manifest pins the exact nixpkgs revision, so the closure is rebuilt on
+the far side rather than shipped; that is what makes the archive kilobytes instead of
+hundreds of megabytes. It is portable to any host with nix. A self-contained image for a
+host with *no* nix is a different mechanism (`dockerTools.streamLayeredImage`, measured
+in W1) and belongs with M7.
+
+Importing over an existing env is refused rather than merged, and the manifest is renamed
+with the env so the container and its manifest cannot disagree about which env it is.
+Archive members that try to traverse out are discarded, and symlinks are recreated
+without ever being resolved — spawn's host-side code does not follow them.
+
 ## Snapshots, forks and diffs
 
 ```

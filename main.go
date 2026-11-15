@@ -472,6 +472,40 @@ func main() {
 		}
 		tb.print()
 		fmt.Printf("\n%d file(s) changed\n", len(ch))
+	case "export":
+		if err := requireDeps(depPodman); err != nil {
+			die(err)
+		}
+		if len(args) != 2 {
+			die(fmt.Errorf("usage: spawn export <env> <file.tar.gz>"))
+		}
+		n, err := exportEnv(args[0], args[1])
+		if err != nil {
+			die(err)
+		}
+		fmt.Printf("exported %s to %s (%d bytes)\n", args[0], args[1], n)
+		fmt.Println(ui.paint(ui.dim,
+			"The nix closure is not included: the manifest pins the revision to rebuild it from."))
+	case "import":
+		if err := requireDeps(depNix, depPodman); err != nil {
+			die(err)
+		}
+		if len(args) < 1 || len(args) > 2 {
+			die(fmt.Errorf("usage: spawn import <file.tar.gz> [new-name]"))
+		}
+		newName := ""
+		if len(args) == 2 {
+			newName = args[1]
+		}
+		name, mpath, err := importEnv(args[0], newName)
+		if err != nil {
+			die(err)
+		}
+		fmt.Printf("imported as %s; building it from the exported manifest\n", name)
+		if err := up(load(mpath), mpath, []string{"true"}); err != nil {
+			die(err)
+		}
+		fmt.Printf("%s is ready: spawn up %s\n", name, name)
 	case "mcp":
 		// Speaks MCP over stdio, so nothing but protocol may reach stdout.
 		mcpMain()
