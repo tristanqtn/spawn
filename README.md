@@ -281,10 +281,8 @@ addresses, and everything refused lands in the audit log it can read back. The t
 descriptions are part of the design: they are the only thing telling an agent *when*
 reaching for a sandbox is the right move.
 
-`skill/SKILL.md` is the other half: the MCP tools let an agent use a sandbox, the skill
-tells it *when* to reach for one. Its test asserts the skill and the tool set cannot
-drift apart — a skill naming a tool that does not exist sends the agent into an error,
-and a tool missing from the skill simply never gets used.
+The agent skill — which tells an agent *when* to reach for a sandbox, rather than how —
+ships separately from this repo.
 
 `test/agent-loop.py` drives the whole thing with no human in the loop — provision, run a
 task, inspect what changed, see what was refused, snapshot, break it, restore, destroy —

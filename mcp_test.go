@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 )
@@ -178,40 +177,5 @@ func TestAgentManifestTextParsesBack(t *testing.T) {
 	}
 	if m.Name != "rt" || !m.has("python3") || m.effectiveEgress() != egressDeny {
 		t.Errorf("round-trip lost something: %+v", m)
-	}
-}
-
-// The skill tells an agent which tools exist. If it names one that does not, the agent
-// will call it and get an error; if a tool is missing from the skill, it goes unused.
-func TestSkillMatchesTheToolSet(t *testing.T) {
-	b, err := os.ReadFile("skill/SKILL.md")
-	if err != nil {
-		t.Skip("skill not present:", err)
-	}
-	skill := string(b)
-	for _, tl := range mcpTools() {
-		if !strings.Contains(skill, tl.Name) {
-			t.Errorf("the skill never mentions %s, so an agent will not use it", tl.Name)
-		}
-	}
-	// And the reverse: no invented tool names.
-	for _, word := range strings.Fields(strings.ReplaceAll(skill, "`", " ")) {
-		if !strings.HasPrefix(word, "spawn_") {
-			continue
-		}
-		name := strings.TrimRight(word, ".,:;)\"")
-		found := false
-		for _, tl := range mcpTools() {
-			if tl.Name == name {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("the skill names %q, which is not a tool", name)
-		}
-	}
-	// The skill's job is to say WHEN, not just how.
-	if !strings.Contains(strings.ToLower(skill), "when to") {
-		t.Error("the skill does not tell an agent when to reach for a sandbox")
 	}
 }
