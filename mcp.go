@@ -76,9 +76,13 @@ func mcpTools() []toolDef {
 				"specific addresses. Many environments built from the same tool list share one " +
 				"copy on disk, so creating another is cheap.",
 			InputSchema: obj(map[string]any{
-				"name":     str("short name for the environment, letters digits . _ + - only"),
-				"tools":    strs("nixpkgs package names, e.g. [\"python3\", \"curl\"]"),
-				"profiles": strs("built-in suites to include: general, active-directory, web, ctf, forensics"),
+				"name":  str("short name for the environment, letters digits . _ + - only"),
+				"tools": strs("nixpkgs package names, e.g. [\"python3\", \"curl\"]"),
+				// Built from profileNames() rather than written out, because a hand-kept
+				// list in a tool description is a list that goes stale silently -- and an
+				// agent then asks for a suite that does not exist, or never learns about
+				// one that does.
+				"profiles": strs("built-in suites to include: " + strings.Join(profileNames(), ", ")),
 				"allow":    strs("addresses or CIDRs the environment may reach, e.g. [\"1.1.1.1\"]. Omit for no network."),
 			}, "name"),
 		},

@@ -14,3 +14,27 @@ tools = [
   "hashdeep", "ssdeep", "yara", "clamav",
   "wireshark-cli", "tcpdump",
 ]
+
+[smoke]
+"afflib" = "command -v affinfo"
+"autopsy" = "command -v autopsy"
+"avml" = "command -v avml"
+"binwalk" = "command -v binwalk"
+"bulk_extractor" = "command -v bulk_extractor"
+"clamav" = "command -v clamscan"
+"dc3dd" = "command -v dc3dd"
+"ddrescue" = "command -v ddrescue"
+"exiftool" = "exiftool -ver"
+"ext4magic" = "command -v ext4magic"
+"foremost" = "command -v foremost"
+"hashdeep" = "command -v hashdeep"
+"libewf" = "command -v ewfinfo"
+"mac-robber" = "command -v mac-robber"
+"regripper" = "command -v rip.pl"
+"scalpel" = "command -v scalpel"
+"sleuthkit" = "command -v fls"
+"ssdeep" = "command -v ssdeep"
+"tcpdump" = "tcpdump --version"
+"testdisk" = "command -v testdisk"
+"wireshark-cli" = "tshark --version"
+"yara" = "yara --version"

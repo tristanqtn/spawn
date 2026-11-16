@@ -104,14 +104,51 @@ manifest path are podman labels, and `podman ps` is the source of truth.
 
 | Suite | For |
 |---|---|
+| `pentest` | **the daily driver** — general + recon + creds + pivot + AD + web, 144 packages |
 | `general` | the shell you actually want — git, ripgrep, jq, python3, net tools |
+| `recon` | nmap, masscan, rustscan, naabu, tcpdump, tshark, smbmap, enum4linux |
+| `creds` | hashcat 8, john, hydra, seclists, crunch, cewl |
+| `pivot` | chisel, ligolo-ng, socat, proxychains, sshuttle, gost, frp |
 | `active-directory` | netexec, impacket, BloodHound CE + neo4j, responder, certipy, kerbrute |
 | `web` | ffuf, sqlmap, nuclei, nikto, dalfox, httpx, katana, zap |
+| `wifi` | aircrack-ng, hcxtools, kismet, bettercap, reaver — needs real hardware |
+| `osint` | theharvester, amass, subfinder, maigret, trufflehog — needs egress |
 | `ctf` | pwntools, gdb, radare2, ghidra, stego and crypto helpers |
 | `forensics` | sleuthkit, autopsy, bulk_extractor, yara, libewf |
 
-Suites compose: listing several merges and deduplicates their tools, and `tools`
-adds anything else from nixpkgs on top.
+Suites compose two ways. A manifest listing several merges and deduplicates their
+tools, and `tools` adds anything else from nixpkgs on top. A suite can also `include`
+others, which is how `pentest` is built from the blocks above — reached twice through
+different paths, `recon` still contributes nmap exactly once.
+
+Some suites need something from the host that spawn will deliberately not grant itself:
+raw sockets for `recon`, a wireless interface for `wifi`, egress for `osint`. Each one
+says so in a `note`, printed by `spawn profiles` and `spawn check`. A profile never
+grants a capability — privileges stay visible in the manifest where you can review
+them.
+
+## Does every tool actually run?
+
+Resolving in nixpkgs and *working in a container* are different claims, and the gap is
+where the surprises live. `spawn smoke` closes it:
+
+```sh
+spawn smoke creds       # build the suite, run every tool, report what works
+spawn smoke web --keep  # leave the env behind to poke at a failure
+```
+
+Every tool in every suite is covered — a `[smoke]` entry in the profile, or the
+`command -v <attr>` default — and CI runs one job per suite on every push.
+
+This is not theatre. On its first run it found that `hashcat` had no OpenCL device at
+all (fixed with `pocl` and `OCL_ICD_VENDORS`), and that `fping` died with
+`icmp: unknown protocol` because an env had no `/etc/protocols` (fixed by seeding it
+from `iana-etc`). Both would have passed any check that merely asked whether the
+attribute resolved.
+
+Where a tool genuinely needs more than packaging, the check says only what is true:
+`bloodhound-ce` asserts the binary exists, and the suite's note says BloodHound CE
+needs neo4j started.
 
 Burp Suite, wpscan and volatility3 are **absent on purpose** — all three are unfree in
 nixpkgs, and one unfree attribute breaks the whole suite's evaluation. Opt in per

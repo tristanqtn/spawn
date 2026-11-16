@@ -35,7 +35,10 @@ const defaultNixpkgs = "github:NixOS/nixpkgs/d5cc6833999746cffdfe0598f7bc801a57b
 // With no base image there is no /bin/sh and no /etc/ssl, so every env gets a
 // userland. cacert is not optional: without it every TLS client in the env fails.
 // nix is included so an env can add a package it turns out to need without a rebuild.
-var baseTools = []string{"bashInteractive", "coreutils", "cacert", "nix"}
+// iana-etc supplies /etc/protocols and /etc/services, which spawn seeds into the
+// env. Without them getprotobyname("icmp") fails and fping dies with "icmp: unknown
+// protocol" -- and so does anything else that resolves a protocol or service by name.
+var baseTools = []string{"bashInteractive", "coreutils", "cacert", "nix", "iana-etc"}
 
 // Attr names reach a nix expression and a container name, so they are a trust boundary.
 var attrRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.+-]*$`)
@@ -108,10 +111,21 @@ func profileNames() []string {
 }
 
 func profileTools(name string) ([]string, error) {
+	return profileToolsSeen(name, map[string]bool{})
+}
+
+// profileToolsSeen resolves a suite and everything it includes, depth first, with the
+// including suite's own tools last. `seen` both breaks cycles and dedups a diamond --
+// two suites including the same base is the normal case, not an error.
+func profileToolsSeen(name string, seen map[string]bool) ([]string, error) {
 	// Reject path separators before touching the FS: a profile name is a bare word.
 	if !attrRe.MatchString(name) {
 		return nil, fmt.Errorf("profile %q is not a bare name", name)
 	}
+	if seen[name] {
+		return nil, nil
+	}
+	seen[name] = true
 	b, err := profileFS.ReadFile("profiles/" + name + ".toml")
 	if err != nil {
 		return nil, fmt.Errorf("no such profile %q (have: %s)", name, strings.Join(profileNames(), ", "))
@@ -120,14 +134,35 @@ func profileTools(name string) ([]string, error) {
 	if err := toml.Unmarshal(b, &p); err != nil {
 		return nil, fmt.Errorf("profile %q: %w", name, err)
 	}
-	return p.Tools, nil
+	var out []string
+	for _, inc := range p.Includes {
+		ts, err := profileToolsSeen(inc, seen)
+		if err != nil {
+			return nil, fmt.Errorf("profile %q includes %w", name, err)
+		}
+		out = append(out, ts...)
+	}
+	return append(out, p.Tools...), nil
 }
 
 // profileFile is a shipped suite: a tool list plus one line saying what it is for,
 // so `spawn profiles` can be read without opening the repository.
+//
+// includes lets a suite build on others. Without it, the engagement suites would each
+// repeat nmap, netexec and the rest, and the repetition would drift -- a tool added to
+// one and forgotten in the next. It is composition between SHIPPED suites only; a
+// manifest composes by listing several in `profiles`.
 type profileFile struct {
 	Description string   `toml:"description"`
+	Includes    []string `toml:"includes"`
 	Tools       []string `toml:"tools"`
+	// note says what the suite needs from the host that spawn will not grant itself:
+	// caps, a device, egress. Printed by `spawn profiles` and `spawn check`, never
+	// acted on -- a profile that silently granted NET_ADMIN would defeat the point of
+	// privileges being visible in the manifest.
+	Note string `toml:"note"`
+	// Smoke overrides the default `command -v <attr>` check per tool. See smoke.go.
+	Smoke map[string]string `toml:"smoke"`
 }
 
 func profileDescription(name string) (string, error) {
@@ -262,10 +297,10 @@ func (m *Manifest) expr() string {
   pkgs = import fl.outPath {
     system = %q;
     config = { allowUnfree = %t; permittedInsecurePackages = [ %s ]; };
-  };
+%s  };
 in pkgs.buildEnv { name = "spawn-%s"; paths = with pkgs; [ %s ]; }`,
 		m.Nixpkgs, nixSystem(), m.AllowUnfree, nixStrings(m.AllowInsecure),
-		m.Name, strings.Join(m.resolved, " "))
+		m.overlayFor(), m.Name, strings.Join(m.resolved, " "))
 }
 
 func nixCmd(args ...string) *exec.Cmd {
@@ -408,6 +443,30 @@ func main() {
 		if err := listProfiles(); err != nil {
 			die(err)
 		}
+	case "smoke":
+		if err := requireDeps(depNix, depPodman); err != nil {
+			die(err)
+		}
+		keep := false
+		var prof string
+		for _, a := range args {
+			switch a {
+			case "--keep":
+				keep = true
+			default:
+				if prof != "" {
+					die(fmt.Errorf("usage: spawn smoke [--keep] <suite>"))
+				}
+				prof = a
+			}
+		}
+		if prof == "" {
+			die(fmt.Errorf("usage: spawn smoke [--keep] <suite> (have: %s)",
+				strings.Join(profileNames(), ", ")))
+		}
+		if err := smoke(prof, keep); err != nil {
+			die(err)
+		}
 	case "check":
 		if err := requireDeps(depNix); err != nil {
 			die(err)
@@ -431,8 +490,23 @@ func main() {
 		if len(m.Persist) > 0 {
 			t.add("persist", strings.Join(m.Persist, ", "))
 		}
+		// An override means this env is not running stock nixpkgs. Say so: it is the
+		// kind of thing that should never be a surprise when a result is disputed.
+		if ov := m.overriddenBy(); len(ov) > 0 {
+			t.add("spawn-maintained", strings.Join(ov, ", "))
+		}
 		t.add("derivation", ui.paint(ui.dim, drv))
 		t.print()
+		// What the suites need from the host that spawn will not grant itself.
+		for _, p := range m.Profiles {
+			notes, err := profileNotes(p)
+			if err != nil {
+				die(err)
+			}
+			for _, n := range notes {
+				fmt.Println(ui.paint(ui.yellow, "note"), n)
+			}
+		}
 		fmt.Println(ui.paint(ui.green, "evaluates; nothing was downloaded"))
 	case "up":
 		if err := requireDeps(depNix, depPodman); err != nil {

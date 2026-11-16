@@ -7,6 +7,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -95,7 +96,18 @@ func createArgs(m *Manifest, prof, manifestPath string) ([]string, string, error
 		"-e", "NIX_CONFIG=experimental-features = nix-command flakes",
 		// The env's own name, so a prompt or a script can say which box it is in.
 		"-e", "SPAWN_ENV=" + m.Name,
+		// And the profile itself, so a script can find share/ and etc/ without
+		// deriving them from $(command -v bash) and a pile of ../.
+		"-e", "SPAWN_PROFILE=" + prof,
 		"-w", m.workdir()}
+	// An OpenCL implementation is useless unless the loader can find its ICD, and
+	// ocl-icd only looks in /etc/OpenCL/vendors -- which in an env is spawn's seeded
+	// /etc, not the profile. Without this hashcat starts, finds zero devices and
+	// exits, which looks exactly like a broken package. Same reasoning as
+	// SSL_CERT_FILE above: the profile knows where the file is, the tool does not.
+	if m.has("pocl") {
+		args = append(args, "-e", "OCL_ICD_VENDORS="+prof+"/etc/OpenCL/vendors")
+	}
 	if _, err := os.Stat(nixDaemonSocket); err == nil {
 		args = append(args,
 			"-v", nixDaemonSocket+":"+envDaemonSocket,
@@ -193,7 +205,7 @@ func up(m *Manifest, manifestPath string, cmd []string) error {
 	// On every up, so that editing a host dotfile and re-running applies it -- even
 	// to an env already running, since the rootfs directory IS the container's
 	// filesystem. Base identity first, so a manifest can override any of it.
-	if err := seedBaseEtc(m.Name, m.shellBin(prof)); err != nil {
+	if err := seedBaseEtc(m.Name, m.shellBin(prof), prof); err != nil {
 		return err
 	}
 	if err := m.seedShell(prof); err != nil {
@@ -327,3 +339,19 @@ func dirExists(p string) bool {
 	fi, err := os.Stat(p)
 	return err == nil && fi.IsDir()
 }
+
+// execIn runs a script inside an env. It must use the PROFILE's bash: there is no base
+// image, so /bin/sh does not exist -- a mistake that once made a leak test report a
+// wide-open env when the policy was in fact installed.
+//
+// It lives here rather than in a test file because `spawn smoke` needs exactly this:
+// run something in an env built from a profile and read what it printed.
+func execIn(env, script string) (string, error) {
+	prof := inspect(env, `{{index .Config.Labels "spawn.profile"}}`)
+	if prof == "" {
+		return "", errNoProfile
+	}
+	return podmanOut("exec", "-e", "PATH="+prof+"/bin", cname(env), prof+"/bin/bash", "-c", script)
+}
+
+var errNoProfile = errors.New("env has no recorded profile")

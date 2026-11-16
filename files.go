@@ -107,7 +107,7 @@ func envRootfsPath(name, inside string) string {
 //
 // A manifest may override any of these by declaring it in files, because the user's
 // declaration is seeded afterwards and wins.
-func seedBaseEtc(name, loginShell string) error {
+func seedBaseEtc(name, loginShell, prof string) error {
 	etc := filepath.Join(envDir(name), "rootfs", "etc")
 	if err := os.MkdirAll(etc, 0o755); err != nil {
 		return err
@@ -135,6 +135,24 @@ func seedBaseEtc(name, loginShell string) error {
 	if name := hostTimezone(); name != "" {
 		if _, err := writeIfChanged(filepath.Join(etc, "timezone"), []byte(name+"\n"), 0o644); err != nil {
 			return fmt.Errorf("seeding /etc/timezone: %w", err)
+		}
+	}
+	// protocols and services, taken from iana-etc in the profile rather than from the
+	// host, so two hosts seed byte-identical files.
+	//
+	// Without /etc/protocols, getprotobyname("icmp") fails and fping exits with
+	// "fping: icmp: unknown protocol" -- an error naming neither the container nor
+	// the missing file. Anything resolving a protocol or service by name hits the
+	// same wall, which is most of recon. Found by a smoke check, not by reasoning.
+	for _, f := range []string{"protocols", "services"} {
+		b, err := os.ReadFile(filepath.Join(prof, "etc", f))
+		if err != nil {
+			// iana-etc is in baseTools, so this should not happen. An env that
+			// somehow lacks it still works, just without name lookups.
+			continue
+		}
+		if _, err := writeIfChanged(filepath.Join(etc, f), b, 0o644); err != nil {
+			return fmt.Errorf("seeding /etc/%s: %w", f, err)
 		}
 	}
 	return nil

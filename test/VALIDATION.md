@@ -21,6 +21,26 @@ fail without them. The two scripted suites are listed at the end.
 | `TestProfileNamesAreParseable` | `--names` output is what CI can consume |
 | `TestWorkdirDefaultsAndValidates` | `/root` default, cleaned, relative rejected |
 
+## Composable suites and smoke checks
+
+| Test | Asserts |
+|---|---|
+| `TestProfileIncludesCompose` | a suite's includes really contribute, and it does not list them itself |
+| `TestPentestComposesWithoutDuplicates` | the umbrella suite pulls in every block, and a diamond dedups |
+| `TestProfileIncludeCycleTerminates` | an already-visited include is not expanded again |
+| `TestProfileIncludeMustExist` | a missing suite errors; path separators refused |
+| `TestEverySuiteToolHasASmokeCheck` | **the M5 criterion**: every tool in every suite is covered, by table or default |
+| `TestNoSmokeEntryIsOrphaned` | no `[smoke]` key names a tool the suite does not install |
+| `TestOuterSmokeEntryWins` | a composed suite inherits, and can override, a block's check |
+| `TestSmokeDefaultsToTheAttrName` | the fallback is exactly `command -v <attr>` |
+| `TestNotesSurviveComposition` | a suite's note reaches the composed suite; no profile grants caps |
+| `TestSmokeManifestIsSealed` | a smoke env denies egress and holds NET_RAW |
+| `TestOverlayOnlyWhenUsed` | a spawn-maintained package changes the expression only when resolved |
+| `TestOverlayFragmentsAreWellFormed` | each `pkgs/*.nix` is a two-argument function |
+| `TestHashcatOverrideIsPinned` | the hashcat override names a version and a hash, never a branch |
+| `TestCISmokesEverySuite` | the CI smoke matrix and `spawn profiles --names` cannot drift apart |
+| `TestOpenCLVendorsSetWithPocl` | `OCL_ICD_VENDORS` is set when pocl is present, absent otherwise |
+
 ## Runtime surface
 
 | Test | Asserts |

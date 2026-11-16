@@ -1,0 +1,43 @@
+# wifi — 802.11.
+#
+# This is the suite where "packaged" and "working" diverge most sharply, and the
+# honest thing is to say so in the profile rather than let it be discovered at 2am:
+#
+#   - Monitor mode needs a real wireless interface handed to the env, and a rootless
+#     container does not get one by default. Pass the device and NET_ADMIN.
+#   - WSL2 has no wireless stack at all. These tools install and run; they will not
+#     see an interface. The smoke checks below assert the binaries work, which is all
+#     that can be asserted without hardware -- see test/VALIDATION.md.
+#
+# So the suite is useful on a Linux host with a USB adapter, and is a packaging
+# exercise on WSL2. Nothing in spawn can change that.
+description = "802.11: aircrack-ng, hcxtools, kismet, bettercap"
+note = "needs a real wireless interface: caps = [\"NET_ADMIN\", \"NET_RAW\"] and the device passed through. No wireless stack exists on WSL2."
+
+tools = [
+  "aircrack-ng", "airgeddon", "wifite2", "mdk4",
+  "hcxtools", "hcxdumptool", "cowpatty",
+  "bully", "reaverwps", "pixiewps",
+  "kismet", "horst", "bettercap",
+  "hostapd", "wpa_supplicant", "iw", "wirelesstools", "macchanger",
+]
+
+[smoke]
+"aircrack-ng" = "command -v aircrack-ng"
+"airgeddon" = "command -v airgeddon"
+"bettercap" = "bettercap -version"
+"bully" = "command -v bully"
+"cowpatty" = "command -v cowpatty"
+"hcxdumptool" = "command -v hcxdumptool"
+"hcxtools" = "command -v hcxpcapngtool"
+"horst" = "command -v horst"
+"hostapd" = "command -v hostapd"
+"iw" = "iw --version"
+"kismet" = "command -v kismet"
+"macchanger" = "macchanger --version"
+"mdk4" = "command -v mdk4"
+"pixiewps" = "command -v pixiewps"
+"reaverwps" = "command -v reaver"
+"wifite2" = "command -v wifite"
+"wirelesstools" = "command -v iwconfig"
+"wpa_supplicant" = "command -v wpa_supplicant"

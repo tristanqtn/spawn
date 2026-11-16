@@ -1,15 +1,44 @@
 # active-directory — the Exegol AD workflow.
-# bloodhound-ce needs neo4j running alongside it: both are here, and they run as
-# services inside the one env (see the "one env = one container" decision).
+#
 # Attribute names are the ones W0.5 measured as resolving, not the obvious guesses:
-# python3Packages.impacket (not impacket), certipy (not certipy-ad), samba for smbclient.
+# python3Packages.impacket (not impacket), certipy (not certipy-ad), samba for
+# smbclient.
+#
+# BloodHound CE is the standing example of a tool that is PACKAGED but does not RUN on
+# its own: it needs neo4j and postgres alongside it. Both are here, and
+# hooks.post_start is how you start them -- see profiles/README.md and the smoke entry
+# below, which asserts the binary and nothing more. Claiming more would be a lie.
 description = "AD attack path: netexec, impacket, BloodHound CE, certipy"
+note = "BloodHound CE needs neo4j started: hooks.post_start = [\"neo4j start\"]"
+
+# Scanning and cracking come from the shared suites rather than being repeated here.
+includes = ["recon", "creds"]
 
 tools = [
   "netexec", "python3Packages.impacket", "enum4linux-ng", "ldapdomaindump", "ldapvi",
   "bloodhound-ce", "bloodhound-py", "neo4j",
   "responder", "mitm6", "pretender", "adidnsdump",
   "certipy", "kerbrute", "evil-winrm", "krb5", "samba",
-  "john", "hashcat", "thc-hydra",
-  "nmap",
 ]
+
+[smoke]
+"adidnsdump" = "command -v adidnsdump"
+# Packaged, NOT running: BloodHound CE needs neo4j and postgres alongside it. This
+# asserts what is true -- the tool is installed -- and the note above says what
+# starting it takes. Asserting more would be the lie this milestone exists to stop.
+"bloodhound-ce" = "command -v bloodhound-cli"
+"bloodhound-py" = "command -v bloodhound-python"
+"certipy" = "command -v certipy"
+"enum4linux-ng" = "command -v enum4linux-ng"
+"evil-winrm" = "command -v evil-winrm"
+"kerbrute" = "command -v kerbrute"
+"krb5" = "command -v kinit"
+"ldapdomaindump" = "command -v ldapdomaindump"
+"ldapvi" = "command -v ldapvi"
+"mitm6" = "command -v mitm6"
+"neo4j" = "command -v neo4j"
+"netexec" = "command -v nxc"
+"pretender" = "command -v pretender"
+"python3Packages.impacket" = "python3 -c 'import impacket; print(impacket.version.version)'"
+"responder" = "command -v responder"
+"samba" = "command -v smbclient"

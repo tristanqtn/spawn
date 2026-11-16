@@ -107,12 +107,26 @@ func TestCopyTreeKeepsExecutableBitAndSkipsSymlinks(t *testing.T) {
 // There is no base image, so spawn is the only thing that can provide it.
 func TestSeedBaseEtcProvidesIdentity(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
-	const prof = "/nix/store/fake-profile/bin/bash"
-	if err := seedBaseEtc("etctest", prof); err != nil {
+	const loginShell = "/nix/store/fake-profile/bin/bash"
+	// A profile directory holding iana-etc's files, so the protocols/services seeding
+	// is exercised rather than silently skipped.
+	prof := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(prof, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"protocols", "services"} {
+		body := "# " + f + "\nicmp 1 ICMP\n"
+		if err := os.WriteFile(filepath.Join(prof, "etc", f), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := seedBaseEtc("etctest", loginShell, prof); err != nil {
 		t.Fatal(err)
 	}
 	etc := filepath.Join(envDir("etctest"), "rootfs", "etc")
-	for _, f := range []string{"passwd", "group", "nsswitch.conf", "shells"} {
+	// protocols and services are in the list because without them getprotobyname()
+	// fails and fping exits "icmp: unknown protocol" -- found by a smoke check.
+	for _, f := range []string{"passwd", "group", "nsswitch.conf", "shells", "protocols", "services"} {
 		if _, err := os.Stat(filepath.Join(etc, f)); err != nil {
 			t.Errorf("/etc/%s not seeded", f)
 		}
@@ -125,7 +139,7 @@ func TestSeedBaseEtcProvidesIdentity(t *testing.T) {
 		t.Errorf("uid 0 has no entry:\n%s", passwd)
 	}
 	// /bin/bash does not exist in an env, so the shell must be the profile's.
-	if !strings.Contains(string(passwd), prof) {
+	if !strings.Contains(string(passwd), loginShell) {
 		t.Errorf("login shell is not the profile's bash:\n%s", passwd)
 	}
 	if ns, _ := os.ReadFile(filepath.Join(etc, "nsswitch.conf")); !strings.Contains(string(ns), "passwd: files") {

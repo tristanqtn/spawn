@@ -67,3 +67,31 @@ jobs:
         # switch in force. Needs a second env as the server, which is why it is a
         # script rather than a Go test.
         run: bash test/vpn-datapath.sh
+
+  # The M5 exit criterion: every tool in every suite RUNS, not merely resolves.
+  # Separate job because it downloads each suite's closure -- the `suites` job
+  # deliberately only evaluates, which is seconds, and this is minutes.
+  #
+  # One job per suite rather than a loop, so a failure names the suite in the UI and
+  # one broken package does not hide the state of the others.
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every shipped suite, pentest included: it is the daily driver, and its own
+        # four tools are covered nowhere else. A test asserts this list matches
+        # `spawn profiles --names`, so adding a suite without adding it here fails.
+        suite: [general, recon, creds, pivot, osint, wifi, active-directory, web, ctf, forensics, pentest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - run: go build -o /usr/local/bin/spawn .
+      - name: ${{ matrix.suite }} — every tool runs
+        run: spawn smoke ${{ matrix.suite }}

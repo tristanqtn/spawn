@@ -1,0 +1,54 @@
+# recon — find what is there before touching it.
+#
+# A building block: active-directory, web and pentest all include it rather than each
+# repeating nmap. Every attr here was verified against the pin, not guessed -- the
+# obvious name is wrong often enough that `wireshark-cli` and `thc-hydra` both surprise
+# people.
+#
+# Note: masscan, zmap, arp-scan, netdiscover and tcpdump need CAP_NET_RAW. nmap's
+# default scan needs it too; without it nmap silently falls back to a connect scan and
+# -sS fails with "You requested a scan type which requires root privileges".
+description = "scanning and discovery: nmap, masscan, rustscan, tcpdump"
+note = "raw sockets need caps = [\"NET_RAW\"]; nmap -sS and masscan fail without it"
+
+tools = [
+  # port and host discovery
+  "nmap", "masscan", "rustscan", "naabu", "zmap",
+  "netdiscover", "arp-scan", "fping", "nbtscan",
+
+  # name discovery
+  "dnsx", "dnsrecon", "dnsenum", "fierce", "whois", "dnsutils",
+
+  # service probes that are not web
+  "onesixtyone", "snmpcheck", "ike-scan", "smbmap", "enum4linux",
+
+  # watching the wire
+  "tcpdump", "wireshark-cli",
+]
+
+[smoke]
+"arp-scan" = "arp-scan --version"
+"dnsenum" = "command -v dnsenum"
+"dnsrecon" = "command -v dnsrecon"
+"dnsutils" = "dig -v"
+"dnsx" = "command -v dnsx"
+"enum4linux" = "command -v enum4linux"
+"fierce" = "command -v fierce"
+# fping -v needs /etc/protocols; spawn seeds it from iana-etc, and this is the
+# check that found it missing.
+"fping" = "fping -v"
+"ike-scan" = "command -v ike-scan"
+# masscan prints its version and then exits 1, so the status is no assertion.
+"masscan" = "command -v masscan"
+"naabu" = "command -v naabu"
+"nbtscan" = "command -v nbtscan"
+"netdiscover" = "command -v netdiscover"
+"nmap" = "nmap --version"
+"onesixtyone" = "command -v onesixtyone"
+"rustscan" = "rustscan --version"
+"smbmap" = "command -v smbmap"
+"snmpcheck" = "command -v snmp-check"
+"tcpdump" = "tcpdump --version"
+"whois" = "command -v whois"
+"wireshark-cli" = "tshark --version"
+"zmap" = "command -v zmap"

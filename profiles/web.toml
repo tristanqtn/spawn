@@ -1,11 +1,36 @@
 # web — web application testing.
+#
 # burpsuite and wpscan are deliberately absent: both are unfree, and an unfree package
-# in a default suite would break every build until the manifest can opt in (M2).
+# in a default suite would break every build until the manifest opts in. Add them with
+# `allow_unfree = true` and `tools = ["burpsuite", "wpscan"]`.
 description = "web app testing: ffuf, sqlmap, nuclei, dalfox, zap"
+
+includes = ["recon"]
 
 tools = [
   "ffuf", "feroxbuster", "gobuster", "dirb", "wfuzz",
-  "sqlmap", "nuclei", "nikto", "whatweb", "dalfox", "arjun",
-  "httpx", "katana", "subfinder", "amass",
+  "sqlmap", "nuclei", "nuclei-templates", "nikto", "whatweb", "dalfox", "arjun",
+  "httpx", "katana", "subfinder", "amass", "wafw00f",
   "httpie", "zap",
 ]
+
+[smoke]
+"amass" = "command -v amass"
+"arjun" = "command -v arjun"
+"dalfox" = "command -v dalfox"
+"dirb" = "command -v dirb"
+"feroxbuster" = "feroxbuster --version"
+"ffuf" = "ffuf -V"
+"gobuster" = "command -v gobuster"
+"httpie" = "http --version"
+"httpx" = "command -v httpx"
+"katana" = "command -v katana"
+"nikto" = "command -v nikto"
+"nuclei" = "command -v nuclei"
+"nuclei-templates" = 'test -d "$SPAWN_PROFILE/share/nuclei-templates"'
+"sqlmap" = "sqlmap --version"
+"subfinder" = "command -v subfinder"
+"wafw00f" = "command -v wafw00f"
+"wfuzz" = "command -v wfuzz"
+"whatweb" = "command -v whatweb"
+"zap" = "command -v zap"

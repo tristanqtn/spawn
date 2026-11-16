@@ -1,12 +1,41 @@
 # ctf — reversing, pwn, stego and crypto.
 description = "reversing, pwn, stego and crypto"
 
+# Cracking comes from the shared suite.
+includes = ["creds"]
+
 tools = [
   "python3Packages.pwntools", "gdb", "radare2", "rizin", "ghidra",
   "binutils", "elfutils", "patchelf", "nasm", "checksec", "upx", "xxd",
   "ltrace", "strace",
   "binwalk", "foremost", "steghide", "stegseek", "exiftool", "zbar",
   "python3Packages.sympy", "python3Packages.gmpy2", "python3Packages.pycryptodome",
-  "john", "hashcat",
   "p7zip", "unrar-free",
 ]
+
+[smoke]
+"binutils" = "objdump --version"
+"binwalk" = "command -v binwalk"
+"checksec" = "command -v checksec"
+"elfutils" = "command -v eu-readelf"
+"exiftool" = "exiftool -ver"
+"foremost" = "command -v foremost"
+"gdb" = "command -v gdb"
+"ghidra" = "command -v ghidra"
+"ltrace" = "command -v ltrace"
+"nasm" = "nasm -v"
+"p7zip" = "command -v 7z"
+"patchelf" = "patchelf --version"
+"python3Packages.gmpy2" = "python3 -c 'import gmpy2; print(gmpy2.version())'"
+"python3Packages.pwntools" = "python3 -c 'import pwn; print(pwn.__version__)'"
+"python3Packages.pycryptodome" = "python3 -c 'import Crypto; print(Crypto.__version__)'"
+"python3Packages.sympy" = "python3 -c 'import sympy; print(sympy.__version__)'"
+"radare2" = "command -v r2"
+"rizin" = "command -v rizin"
+"steghide" = "command -v steghide"
+"stegseek" = "command -v stegseek"
+"strace" = "command -v strace"
+"unrar-free" = "command -v unrar-free"
+"upx" = "command -v upx"
+"xxd" = "command -v xxd"
+"zbar" = "command -v zbarimg"

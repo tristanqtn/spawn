@@ -35,3 +35,65 @@ tools = [
   # scripting
   "python3", "tealdeer", "man-pages",
 ]
+
+# A smoke entry is only needed where `command -v <attr>` would not find the tool --
+# because the binary has a different name, or the attr ships several. The rest default
+# to that lookup, which is what `spawn smoke` asserts.
+[smoke]
+"bash-completion" = 'test -d "$SPAWN_PROFILE/share/bash-completion"'
+"bat" = "bat --version"
+"btop" = "command -v btop"
+"curl" = "curl --version"
+"difftastic" = "difft --version"
+"diffutils" = "diff --version"
+"direnv" = "direnv --version"
+"dnsutils" = "dig -v"
+"duf" = "command -v duf"
+"eza" = "eza --version"
+"fd" = "fd --version"
+"file" = "file --version"
+"findutils" = "find --version"
+"fzf" = "fzf --version"
+"gawk" = "awk --version"
+"git" = "git --version"
+"gnugrep" = "grep --version"
+"gnumake" = "make --version"
+"gnused" = "sed --version"
+"gping" = "gping --version"
+"gzip" = "gzip --version"
+"hexyl" = "hexyl --version"
+"htop" = "command -v htop"
+"iproute2" = "ip -V"
+"iputils" = "command -v ping"
+"jq" = "jq --version"
+"less" = "less --version"
+"man-pages" = 'test -d "$SPAWN_PROFILE/share/man"'
+"moreutils" = "command -v sponge"
+"ncdu" = "command -v ncdu"
+"neovim" = "nvim --version"
+"netcat-gnu" = "command -v nc"
+"nix-zsh-completions" = 'test -d "$SPAWN_PROFILE/share/zsh"'
+"openssh" = "command -v ssh"
+"openssl" = "openssl version"
+"p7zip" = "command -v 7z"
+"procs" = "procs --version"
+"python3" = "python3 --version"
+"ripgrep" = "rg --version"
+"rsync" = "rsync --version"
+"socat" = "socat -V"
+"starship" = "starship --version"
+"tealdeer" = "tldr --version"
+"tmux" = "tmux -V"
+"tree" = "tree --version"
+"unzip" = "command -v unzip"
+"vim" = "command -v vim"
+"wget" = "wget --version"
+"which" = "which --version"
+"whois" = "command -v whois"
+"xh" = "xh --version"
+"yq-go" = "yq --version"
+"zoxide" = "zoxide --version"
+"zsh" = "zsh --version"
+"zsh-autosuggestions" = 'test -f "$SPAWN_PROFILE/share/zsh-autosuggestions/zsh-autosuggestions.zsh"'
+"zsh-completions" = 'test -d "$SPAWN_PROFILE/share/zsh"'
+"zsh-syntax-highlighting" = 'test -f "$SPAWN_PROFILE/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"'

@@ -20,6 +20,7 @@ var commands = map[string]string{
 	"init":       "write a manifest and editable dotfiles here",
 	"up":         "build an env and enter it, by manifest or by name",
 	"check":      "evaluate a manifest without building",
+	"smoke":      "run every tool in a suite and report what works",
 	"ls":         "list envs",
 	"stop":       "stop an env, keeping its rootfs",
 	"rm":         "destroy an env and its rootfs",
@@ -42,7 +43,7 @@ var commands = map[string]string{
 // commandOrder is the order the help screen uses: roughly the order a new user meets
 // them, not alphabetical.
 var commandOrder = []string{"init", "up", "ls", "stop", "rm", "diff", "audit", "snapshot",
-	"snapshots", "restore", "fork", "export", "import", "check", "doctor", "mcp", "profiles", "completion",
+	"snapshots", "restore", "fork", "export", "import", "check", "smoke", "doctor", "mcp", "profiles", "completion",
 	"version", "help"}
 
 const bashCompletion = `# spawn bash completion.  Install with:
@@ -171,6 +172,17 @@ func candidates(words []string) []string {
 			return nil
 		}
 		return []string{"--names:print just the suite names, one per line"}
+	case "smoke":
+		// A suite, not a manifest: smoke builds its own throwaway env.
+		if len(words) > 2 {
+			return nil
+		}
+		out := []string{"--keep:leave the env behind to poke at a failure"}
+		for _, n := range profileNames() {
+			d, _ := profileDescription(n)
+			out = append(out, n+":"+d)
+		}
+		return out
 	case "init":
 		if len(words) > 1 {
 			return nil

@@ -9,8 +9,16 @@ profiles = ["general"]
 
 # Exegol puts you in /workspace; this is the same idea, mounted from the host so your
 # work survives the env entirely.
+#
+# ./resources is the my-resources equivalent: your own scripts, wordlists and notes,
+# mounted READ-ONLY so a bad command in a disposable box cannot rewrite them. See
+# resources/README.md. Point it at a shared directory (~/spawn-resources) to carry one
+# set across every env.
 workdir = "/workspace"
-mounts = ["./workspace:/workspace"]
+mounts = [
+  "./workspace:/workspace",
+  "./resources:/opt/resources:ro",
+]
 
 # Outlives `spawn rm`: loot, shell history, and tool state you would hate to re-earn.
 persist = ["/loot", "/root/.local/state"]
@@ -25,6 +33,9 @@ init = '''
 # Anything you want verbatim, last, so it overrides everything generated above.
 export EDITOR=nvim
 bindkey -e
+
+# Your own scripts, from the read-only resources mount above.
+[ -d /opt/resources/bin ] && export PATH="/opt/resources/bin:$PATH"
 
 # Dracula colours for fzf, matching the prompt.
 export FZF_DEFAULT_OPTS="

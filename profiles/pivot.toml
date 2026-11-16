@@ -1,0 +1,29 @@
+# pivot — getting traffic somewhere it is not supposed to go.
+#
+# These tools are the reason [network] join exists: a tunnel between two envs needs a
+# sustained flow, and a published UDP port forwards the handshake and then stops.
+# See reference/manifest.md in the skill repo, or network.go.
+description = "tunnels and relays: chisel, ligolo-ng, socat, proxychains"
+note = "env-to-env tunnels need [network] join, not published ports"
+
+tools = [
+  "socat", "netcat-gnu", "stunnel",
+  "chisel", "ligolo-ng", "gost", "frp", "rathole",
+  "sshuttle", "iodine", "proxychains-ng",
+  "openssh", "pwncat",
+]
+
+[smoke]
+"chisel" = "chisel --version"
+"frp" = "command -v frpc"
+"gost" = "command -v gost"
+"iodine" = "command -v iodine"
+"ligolo-ng" = "command -v ligolo-proxy"
+"netcat-gnu" = "command -v nc"
+"openssh" = "command -v ssh"
+"proxychains-ng" = "command -v proxychains4"
+"pwncat" = "command -v pwncat"
+"rathole" = "command -v rathole"
+"socat" = "socat -V"
+"sshuttle" = "sshuttle --version"
+"stunnel" = "command -v stunnel"

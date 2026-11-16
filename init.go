@@ -53,10 +53,14 @@ func initKit(dir string, force bool) error {
 	if err != nil {
 		return err
 	}
-	// The manifest mounts ./workspace, and a missing mount source is an error, so
-	// create it rather than leave the first `spawn up` to fail.
-	if err := os.MkdirAll(filepath.Join(dir, "workspace"), 0o755); err != nil {
-		return err
+	// The manifest mounts ./workspace and ./resources, and a missing mount source is
+	// an error, so create them rather than leave the first `spawn up` to fail.
+	// resources/README.md comes from the template tree, so that directory already
+	// exists -- but only when the template was written, not when it was skipped.
+	for _, d := range []string{"workspace", "resources"} {
+		if err := os.MkdirAll(filepath.Join(dir, d), 0o755); err != nil {
+			return err
+		}
 	}
 
 	t := newTable("", "FILE")
@@ -67,6 +71,7 @@ func initKit(dir string, force bool) error {
 		t.add(ui.paint(ui.dim, "kept"), ui.paint(ui.dim, f+" (already there)"))
 	}
 	t.add(ui.paint(ui.green, "new"), "workspace/")
+	t.add(ui.paint(ui.green, "new"), "resources/")
 	t.print()
 
 	if len(skipped) > 0 {

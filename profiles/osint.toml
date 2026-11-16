@@ -1,0 +1,51 @@
+# osint — what is findable without touching the target.
+#
+# Egress policy matters more here than anywhere else: every tool in this suite is
+# supposed to reach the internet, so `[network] egress = "deny"` makes the whole suite
+# useless, and `allow = [...]` with a short list is usually wrong too. Run this one
+# through the VPN instead -- `spawn audit` afterwards shows what it reached for.
+#
+# metagoofil, phoneinfoga, shodan, spiderfoot and sublist3r are deliberately absent:
+# none resolve in the pin, under any attr name tried. Named here so the gap is a
+# recorded fact rather than an oversight.
+description = "passive collection: theharvester, amass, subfinder, maigret"
+note = "every tool here needs egress; run it behind the VPN rather than opening the policy"
+
+tools = [
+  # names and infrastructure
+  "amass", "subfinder", "assetfinder", "theharvester",
+
+  # people and accounts
+  "sherlock", "holehe", "maigret", "h8mail",
+
+  # crawling and archives
+  "photon", "gau", "whatweb",
+
+  # leaks in what is already public
+  "trufflehog", "gitleaks",
+
+  # the catalogues
+  "exploitdb", "payloadsallthethings",
+
+  # reading what comes back
+  "exiftool", "recon-ng",
+]
+
+[smoke]
+"amass" = "command -v amass"
+"assetfinder" = "command -v assetfinder"
+"exiftool" = "exiftool -ver"
+"exploitdb" = "command -v searchsploit"
+"gau" = "command -v gau"
+"gitleaks" = "gitleaks version"
+"h8mail" = "command -v h8mail"
+"holehe" = "command -v holehe"
+"maigret" = "command -v maigret"
+"payloadsallthethings" = 'test -d "$SPAWN_PROFILE/share/payloadsallthethings"'
+"photon" = "command -v photon"
+"recon-ng" = "command -v recon-ng"
+"sherlock" = "command -v sherlock"
+"subfinder" = "command -v subfinder"
+"theharvester" = "command -v theHarvester"
+"trufflehog" = "trufflehog --version"
+"whatweb" = "command -v whatweb"

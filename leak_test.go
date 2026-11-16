@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -50,21 +49,6 @@ func dropCount(t *testing.T, env string) int {
 	}
 	return n
 }
-
-func env2c(name string) string { return cname(name) }
-
-// execIn runs a script inside an env. It must use the PROFILE's bash: there is no base
-// image, so /bin/sh does not exist -- a mistake that made this test report a wide-open
-// env when the policy was in fact installed.
-func execIn(env, script string) (string, error) {
-	prof := inspect(env, `{{index .Config.Labels "spawn.profile"}}`)
-	if prof == "" {
-		return "", errNoProfile
-	}
-	return podmanOut("exec", "-e", "PATH="+prof+"/bin", env2c(env), prof+"/bin/bash", "-c", script)
-}
-
-var errNoProfile = errors.New("env has no recorded profile")
 
 // reaches reports whether a TCP connection leaves the env and completes. dev, when
 // set, forces the packet out of that interface with SO_BINDTODEVICE, which is how a

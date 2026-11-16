@@ -1,0 +1,46 @@
+# creds — hashes, wordlists and the things that chew through them.
+#
+# hashcat here is spawn's own 8.0.0 (see pkgs/hashcat.nix): nixpkgs is still on 7.1.2.
+# `spawn check` says so when this suite is in use, because running a package nobody
+# else is running is worth knowing about.
+#
+# pocl is here because without it hashcat has NO device at all. A container gets no
+# GPU driver, and nixpkgs' hashcat brings the OpenCL loader but no implementation
+# behind it, so a stock env starts hashcat, lists zero devices and exits. pocl is a
+# CPU OpenCL implementation, which turns "installed" into "cracks hashes" -- exactly
+# the packaged/working distinction this milestone is supposed to stop hand-waving.
+#
+# It is still the CPU. Pass the GPU's devices through if you want the GPU.
+description = "hashes and wordlists: hashcat 8, john, hydra, seclists"
+note = "hashcat cracks on the CPU via pocl; pass the GPU devices through for real speed"
+
+tools = [
+  "hashcat", "hashcat-utils", "pocl", "john", "thc-hydra", "ophcrack",
+  "hashid", "hash-identifier",
+  "crunch", "cewl", "maskprocessor",
+  "seclists", "wordlists",
+]
+
+[smoke]
+"cewl" = "command -v cewl"
+"crunch" = 'test -x "$SPAWN_PROFILE/bin/crunch"'
+"hash-identifier" = "command -v hash-identifier"
+"hashcat" = """
+hashcat --version
+case "$(hashcat --version)" in 8.*) ;; *) echo "not 8.x"; exit 1 ;; esac
+echo 900150983cd24fb0d6963f7d28e17f72 > /tmp/smoke.hash
+hashcat -m 0 -a 3 --quiet --potfile-disable /tmp/smoke.hash '?l?l?l' > /tmp/smoke.out
+case "$(cat /tmp/smoke.out)" in *:abc) echo "v8 cracked md5 on the CPU" ;; *) cat /tmp/smoke.out; exit 1 ;; esac
+"""
+"hashcat-utils" = "command -v cleanup-rules.bin"
+"hashid" = "hashid --version"
+"john" = "command -v john"
+# This is the entry that passed falsely before the runner used pipefail: it was
+# `mp64 --version | head -1`, which reported the status of head while printing
+# "mp64: command not found". The binary is just `maskprocessor`.
+"maskprocessor" = "command -v maskprocessor"
+"ophcrack" = "command -v ophcrack"
+"pocl" = 'test -f "$SPAWN_PROFILE/etc/OpenCL/vendors/pocl.icd"'
+"seclists" = 'test -d "$SPAWN_PROFILE/share/wordlists/seclists"'
+"thc-hydra" = "command -v hydra"
+"wordlists" = 'test -d "$SPAWN_PROFILE/share/wordlists"'
