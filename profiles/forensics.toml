@@ -30,7 +30,8 @@ tools = [
 "hashdeep" = "command -v hashdeep"
 "libewf" = "command -v ewfinfo"
 "mac-robber" = "command -v mac-robber"
-"regripper" = "command -v rip.pl"
+# nixpkgs names the binary regripper, not upstream's rip.pl.
+"regripper" = "command -v regripper"
 "scalpel" = "command -v scalpel"
 "sleuthkit" = "command -v fls"
 "ssdeep" = "command -v ssdeep"

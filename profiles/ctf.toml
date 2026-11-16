@@ -27,7 +27,13 @@ tools = [
 "p7zip" = "command -v 7z"
 "patchelf" = "patchelf --version"
 "python3Packages.gmpy2" = "python3 -c 'import gmpy2; print(gmpy2.version())'"
-"python3Packages.pwntools" = "python3 -c 'import pwn; print(pwn.__version__)'"
+# pwn has no __version__ (that is pwnlib), so the obvious check fails on a working
+# install. Asserting an actual operation is both more useful and harder to get
+# wrong: pack/unpack round-trips through the C extensions pwntools needs.
+"python3Packages.pwntools" = """
+python3 -c 'import pwnlib; print(pwnlib.__version__)'
+python3 -c 'from pwn import p32, u32; assert u32(p32(0x41424344)) == 0x41424344'
+"""
 "python3Packages.pycryptodome" = "python3 -c 'import Crypto; print(Crypto.__version__)'"
 "python3Packages.sympy" = "python3 -c 'import sympy; print(sympy.__version__)'"
 "radare2" = "command -v r2"
