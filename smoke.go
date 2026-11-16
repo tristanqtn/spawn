@@ -124,6 +124,9 @@ func smoke(profile string, keep bool) error {
 	}
 	fmt.Printf("building %s: %d tools\n", profile, len(order))
 	if err := up(m, mpath, []string{"true"}); err != nil {
+		if os.Getenv("GITHUB_ACTIONS") != "" {
+			fmt.Printf("::error title=%s::the suite did not build: %s\n", profile, oneLine(err.Error()))
+		}
 		return fmt.Errorf("the suite did not build: %w", err)
 	}
 
@@ -140,6 +143,14 @@ func smoke(profile string, keep bool) error {
 		if err != nil {
 			failed = append(failed, tool)
 			t.add(tool, ui.paint(ui.red, "FAIL"), truncate(first, 48))
+			// Under Actions, also as a workflow command. A table in a job log is
+			// readable only with repository admin rights, so without this a CI
+			// failure says "exit code 1" and nothing else -- and the whole value of
+			// a smoke check is WHICH tool broke and what it printed.
+			if os.Getenv("GITHUB_ACTIONS") != "" {
+				fmt.Printf("::error title=%s::%s failed its smoke check: %s\n",
+					tool, tool, oneLine(out))
+			}
 			continue
 		}
 		t.add(tool, ui.paint(ui.green, "ok"), ui.paint(ui.dim, truncate(first, 48)))
@@ -266,3 +277,10 @@ var baseToolChecks = map[string]string{
 // under another name -- and it is what makes "every tool has a check" true without a
 // table entry per tool.
 func defaultSmokeCheck(attr string) string { return "command -v " + attr }
+
+// oneLine flattens a check's output for a workflow annotation, which is a single line:
+// a raw newline would truncate the message at the first one, hiding the actual error.
+func oneLine(s string) string {
+	s = strings.Join(strings.Fields(strings.ReplaceAll(s, "\r", " ")), " ")
+	return truncate(s, 400)
+}
