@@ -35,10 +35,16 @@ func TestParseResolves(t *testing.T) {
 	}
 	e := m.expr()
 	for _, want := range []string{"bashInteractive", "coreutils", "cacert", "nix",
-		"nmap", "python3Packages.impacket", `name = "spawn-recon"`} {
+		"nmap", `name = "spawn-recon"`,
+		// A python package reaches the expression through withPackages, not as a
+		// bare attr: listed bare it installs its scripts but stays unimportable.
+		"(python3.withPackages (ps: with ps; [ impacket ]))"} {
 		if !strings.Contains(e, want) {
 			t.Errorf("expr missing %q:\n%s", want, e)
 		}
+	}
+	if strings.Contains(e, "python3Packages.impacket") {
+		t.Errorf("the bare attr is still in the expression:\n%s", e)
 	}
 }
 

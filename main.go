@@ -298,9 +298,60 @@ func (m *Manifest) expr() string {
     system = %q;
     config = { allowUnfree = %t; permittedInsecurePackages = [ %s ]; };
 %s  };
-in pkgs.buildEnv { name = "spawn-%s"; paths = with pkgs; [ %s ]; }`,
+in pkgs.buildEnv { name = "spawn-%s"; ignoreCollisions = true; paths = with pkgs; [ %s ]; }`,
 		m.Nixpkgs, nixSystem(), m.AllowUnfree, nixStrings(m.AllowInsecure),
-		m.overlayFor(), m.Name, strings.Join(m.resolved, " "))
+		m.overlayFor(), m.Name, m.nixPaths())
+}
+
+// ignoreCollisions, on the buildEnv above, is load-bearing for the python handling.
+//
+// withPackages produces a merged interpreter env, and several AD tools are themselves
+// python applications whose closures contain the same site-packages: buildEnv then
+// refuses outright with "two given paths contain a conflicting subpath" on
+// ldapdomaindump, and the active-directory suite does not build at all.
+//
+// The cost is that a colliding file is resolved by paths order rather than reported.
+// That order is deterministic -- baseTools, then each suite in the order declared,
+// then tools -- and the colliding copies here are the same version of the same
+// package. It is also what `nix profile` does for the same reason: a profile that
+// combines 150 packages will collide on a man page or a share/ file eventually, and
+// refusing to build is the wrong answer for a tool whose job is combining tools.
+
+const pyPrefix = "python3Packages."
+
+// nixPaths renders the buildEnv paths, routing python3Packages.* through
+// python3.withPackages.
+//
+// Listing python3Packages.impacket directly installs its SCRIPTS -- secretsdump.py and
+// the rest, which work -- while `python3 -c "import impacket"` fails with
+// ModuleNotFoundError, because a package's site-packages is not on the interpreter's
+// path just because both are in the same buildEnv. Anyone writing a script in the env
+// hits that, and nothing in the error suggests the manifest is at fault.
+//
+// withPackages builds an interpreter that can import them, and still provides the
+// scripts. It also means the bare python3 has to go: two pythons in one buildEnv
+// collide on bin/python3.
+func (m *Manifest) nixPaths() string {
+	var plain, py []string
+	for _, t := range m.resolved {
+		if strings.HasPrefix(t, pyPrefix) {
+			py = append(py, strings.TrimPrefix(t, pyPrefix))
+			continue
+		}
+		plain = append(plain, t)
+	}
+	if len(py) == 0 {
+		return strings.Join(plain, " ")
+	}
+	out := make([]string, 0, len(plain)+1)
+	for _, t := range plain {
+		if t == "python3" {
+			continue // withPackages brings its own
+		}
+		out = append(out, t)
+	}
+	out = append(out, "(python3.withPackages (ps: with ps; [ "+strings.Join(py, " ")+" ]))")
+	return strings.Join(out, " ")
 }
 
 func nixCmd(args ...string) *exec.Cmd {

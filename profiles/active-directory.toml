@@ -6,8 +6,8 @@
 #
 # BloodHound CE is the standing example of a tool that is PACKAGED but does not RUN on
 # its own: it needs neo4j and postgres alongside it. Both are here, and
-# hooks.post_start is how you start them -- see profiles/README.md and the smoke entry
-# below, which asserts the binary and nothing more. Claiming more would be a lie.
+# hooks.post_start is how you start them -- see the note below, and the smoke entry,
+# which asserts the binary and nothing more. Claiming more would be a lie.
 description = "AD attack path: netexec, impacket, BloodHound CE, certipy"
 note = "BloodHound CE needs neo4j started: hooks.post_start = [\"neo4j start\"]"
 
@@ -26,7 +26,7 @@ tools = [
 # Packaged, NOT running: BloodHound CE needs neo4j and postgres alongside it. This
 # asserts what is true -- the tool is installed -- and the note above says what
 # starting it takes. Asserting more would be the lie this milestone exists to stop.
-"bloodhound-ce" = "command -v bloodhound-cli"
+"bloodhound-ce" = "command -v bloodhound-ce"
 "bloodhound-py" = "command -v bloodhound-python"
 "certipy" = "command -v certipy"
 "enum4linux-ng" = "command -v enum4linux-ng"
@@ -39,6 +39,13 @@ tools = [
 "neo4j" = "command -v neo4j"
 "netexec" = "command -v nxc"
 "pretender" = "command -v pretender"
-"python3Packages.impacket" = "python3 -c 'import impacket; print(impacket.version.version)'"
+# Asserts BOTH halves of the package: the module imports (which needs spawn to route
+# python3Packages.* through withPackages -- listed bare, this is a
+# ModuleNotFoundError) and a script runs. impacket.version needs its own import;
+# "import impacket" alone leaves it an AttributeError.
+"python3Packages.impacket" = """
+python3 -c 'import impacket.version; print(impacket.version.version)'
+secretsdump.py -h > /dev/null
+"""
 "responder" = "command -v responder"
 "samba" = "command -v smbclient"

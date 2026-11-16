@@ -127,3 +127,59 @@ func TestOpenCLVendorsSetWithPocl(t *testing.T) {
 		t.Error("OCL_ICD_VENDORS is set in an env with no OpenCL")
 	}
 }
+
+// Declaring python3Packages.impacket installs its scripts but leaves `import impacket`
+// failing, because site-packages is not on the interpreter's path just because both
+// live in one buildEnv. The expression has to route them through withPackages.
+func TestPythonPackagesGoThroughWithPackages(t *testing.T) {
+	m, err := Parse([]byte("schema = 1\nname = \"p\"\n" +
+		"tools = [\"python3\", \"python3Packages.impacket\", \"nmap\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	paths := m.nixPaths()
+	if !strings.Contains(paths, "(python3.withPackages (ps: with ps; [ impacket ]))") {
+		t.Errorf("python packages are not routed through withPackages:\n%s", paths)
+	}
+	// The raw attr must be gone, or the scripts collide with the wrapped interpreter's.
+	if strings.Contains(paths, "python3Packages.impacket") {
+		t.Errorf("the raw attr is still in paths:\n%s", paths)
+	}
+	// And the bare python3 must be gone: two pythons collide on bin/python3.
+	for _, f := range strings.Fields(paths) {
+		if f == "python3" {
+			t.Errorf("bare python3 survived alongside withPackages:\n%s", paths)
+		}
+	}
+	// Everything else is untouched.
+	if !strings.Contains(paths, "nmap") {
+		t.Errorf("a non-python tool went missing:\n%s", paths)
+	}
+
+	// With no python packages the paths are the plain list, so manifests that do not
+	// use them keep a byte-identical expression and rebuild nothing.
+	plain, err := Parse([]byte("schema = 1\nname = \"p\"\ntools = [\"python3\", \"nmap\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(plain.nixPaths(), "withPackages") {
+		t.Error("withPackages appeared with no python packages declared")
+	}
+	if !strings.Contains(plain.nixPaths(), "python3") {
+		t.Error("python3 went missing when it was the only python declared")
+	}
+}
+
+// ignoreCollisions is what lets a 150-package profile build at all. Without it the
+// active-directory suite fails outright: withPackages' merged interpreter env and the
+// top-level ldapdomaindump application both carry its site-packages, and buildEnv
+// refuses with "two given paths contain a conflicting subpath".
+func TestBuildEnvToleratesCollisions(t *testing.T) {
+	m, err := Parse([]byte("schema = 1\nname = \"p\"\ntools = [\"nmap\"]\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(m.expr(), "ignoreCollisions = true") {
+		t.Errorf("buildEnv does not tolerate collisions:\n%s", m.expr())
+	}
+}

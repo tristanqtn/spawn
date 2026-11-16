@@ -38,6 +38,8 @@ fail without them. The two scripted suites are listed at the end.
 | `TestOverlayOnlyWhenUsed` | a spawn-maintained package changes the expression only when resolved |
 | `TestOverlayFragmentsAreWellFormed` | each `pkgs/*.nix` is a two-argument function |
 | `TestHashcatOverrideIsPinned` | the hashcat override names a version and a hash, never a branch |
+| `TestPythonPackagesGoThroughWithPackages` | `python3Packages.*` reach the interpreter's path, and the bare python3 is dropped |
+| `TestBuildEnvToleratesCollisions` | `ignoreCollisions` is set, without which the AD suite does not build |
 | `TestCISmokesEverySuite` | the CI smoke matrix and `spawn profiles --names` cannot drift apart |
 | `TestOpenCLVendorsSetWithPocl` | `OCL_ICD_VENDORS` is set when pocl is present, absent otherwise |
 
