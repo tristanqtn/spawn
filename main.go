@@ -465,16 +465,24 @@ func main() {
 		// Hidden: this is what the shell completion scripts call.
 		complete(args)
 	case "init":
-		dir, force := ".", false
+		dir, force, engagement := ".", false, false
 		for _, a := range args {
 			switch a {
 			case "--force", "-f":
 				force = true
+			case "--engagement":
+				engagement = true
 			default:
+				// A typo'd flag must not become a directory name. Without this,
+				// `spawn init --engagment` silently creates a directory called
+				// "--engagment" and writes the whole kit into it.
+				if strings.HasPrefix(a, "-") {
+					die(fmt.Errorf("unknown flag %q; usage: spawn init [--engagement] [--force] [dir]", a))
+				}
 				dir = a
 			}
 		}
-		if err := initKit(dir, force); err != nil {
+		if err := initKit(dir, force, engagement); err != nil {
 			die(err)
 		}
 	case "profiles":

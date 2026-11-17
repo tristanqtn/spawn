@@ -1,0 +1,82 @@
+# An engagement, declared. Written by `spawn init --engagement`.
+#
+# This is the manifest to point at real work: one profile, your own resources, loot
+# that survives a rebuild, and a VPN block to fill in. Everything here is yours to
+# change -- it is a starting point, not a framework.
+#
+#   spawn check      # resolve it, downloading nothing
+#   spawn up         # build it and get a shell
+#
+# Before the first run, read the three notes `spawn check` prints. They are the things
+# spawn will not grant itself: raw sockets for scanning, and what a suite needs from
+# the host.
+schema = 1
+name = "engagement"
+
+# The daily driver: general + recon + creds + pivot + active-directory + web, 144
+# packages. Add "wifi" when you have an adapter to pass through, "osint" when the job
+# is passive collection, "forensics" or "ctf" as needed -- they compose.
+profiles = ["pentest"]
+
+# nmap's -sS and masscan need raw sockets. Without NET_RAW nmap silently falls back to
+# a connect scan and -sS fails with an error that does not name the cause.
+# NET_ADMIN is here because the VPN below needs it; drop it if you remove the VPN.
+caps = ["NET_RAW", "NET_ADMIN"]
+devices = ["/dev/net/tun"]
+
+# Exegol's /workspace, mounted from the host so the work outlives the env entirely.
+workdir = "/workspace"
+mounts = [
+  "./workspace:/workspace",
+  # Your own scripts, wordlists and notes, read-only. See resources/README.md.
+  "./resources:/opt/resources:ro",
+]
+
+# Outlives `spawn rm` and a rebuild: a tool upgrade should never cost you findings.
+persist = ["/loot", "/root/.local/state"]
+
+[limits]
+cpus = "8"
+memory = "16g"
+pids = 4096
+
+# The VPN. Uncomment once you have a config, and note what each field guarantees:
+# kill_switch means nothing LEAVES except through the tunnel; route_all means traffic
+# actually GOES through it. Both default to true, and they are different properties --
+# with the switch on and no default route via the tunnel, the env is simply offline.
+#
+# The policy is installed BEFORE the client starts, so an env whose tunnel never comes
+# up is sealed rather than open. Check `spawn audit engagement` afterwards to see what
+# was refused.
+#
+# [secrets]
+# vpn = "age:~/secrets/engagement.ovpn.age"
+#
+# [vpn]
+# kind = "openvpn"          # or "wireguard"
+# config = "secret:vpn"
+
+[shell]
+use = "zsh"
+# The Exegol prompt in Dracula, with no file to edit:
+#   [Nov 17, 2026 - 09:14:22 (CET)] engagement /workspace #
+prompt = "exegol"
+aliases = { ll = "eza -l --git --group-directories-first", lt = "eza --tree --level=2", v = "nvim", cat = "bat -p", ports = "ss -tulpn", nxc = "netexec" }
+init = '''
+export EDITOR=nvim
+bindkey -e
+
+# Your own scripts, from the read-only resources mount.
+[ -d /opt/resources/bin ] && export PATH="/opt/resources/bin:$PATH"
+
+# Where loot goes, so it is one variable rather than a habit.
+export LOOT=/loot
+mkdir -p "$LOOT"
+'''
+
+[files]
+"/root/.config/starship.toml" = { from = "./dotfiles/starship.toml" }
+"/root/.tmux.conf"            = { from = "./dotfiles/tmux.conf" }
+"/root/.config/bat/config"    = { from = "./dotfiles/bat.conf" }
+"/root/.gitconfig"            = { from = "./dotfiles/gitconfig" }
+"/root/.config/nvim"          = { from = "./dotfiles/nvim" }

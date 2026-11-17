@@ -22,7 +22,11 @@ var templateFS embed.FS
 
 // initKit writes the template tree into dir. It never overwrites without force,
 // because the whole point is that these files become yours and get edited.
-func initKit(dir string, force bool) error {
+// engagement selects templates/engagement.toml as the manifest instead of the plain
+// one: same dotfiles, but the pentest profile, the privileges scanning needs, a loot
+// directory that survives a rebuild and a VPN block to fill in. It exists because the
+// distance between "the tool works" and "I used it on real work" should be one command.
+func initKit(dir string, force, engagement bool) error {
 	if dir == "" {
 		dir = "."
 	}
@@ -32,6 +36,18 @@ func initKit(dir string, force bool) error {
 			return err
 		}
 		rel := strings.TrimPrefix(p, "templates/")
+		// Exactly one of the two manifest templates is written, as spawn.toml.
+		switch rel {
+		case "engagement.toml":
+			if !engagement {
+				return nil
+			}
+			rel = "spawn.toml"
+		case "spawn.toml":
+			if engagement {
+				return nil
+			}
+		}
 		dst := filepath.Join(dir, filepath.FromSlash(rel))
 		if _, err := os.Stat(dst); err == nil && !force {
 			skipped = append(skipped, rel)

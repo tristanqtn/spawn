@@ -17,7 +17,7 @@ import (
 )
 
 var commands = map[string]string{
-	"init":       "write a manifest and editable dotfiles here",
+	"init":       "write a manifest and editable dotfiles here (--engagement for a pentest one)",
 	"up":         "build an env and enter it, by manifest or by name",
 	"check":      "evaluate a manifest without building",
 	"smoke":      "run every tool in a suite and report what works",
@@ -187,7 +187,8 @@ func candidates(words []string) []string {
 		if len(words) > 1 {
 			return nil
 		}
-		return []string{"--force:overwrite files that are already there"}
+		return []string{"--force:overwrite files that are already there",
+			"--engagement:start from the pentest manifest instead of the plain one"}
 	case "ls", "version", "help", "mcp":
 		return nil
 	}

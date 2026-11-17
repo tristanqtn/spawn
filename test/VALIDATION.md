@@ -154,6 +154,7 @@ fail without them. The two scripted suites are listed at the end.
 | `TestCommandListsAgree` | help order and descriptions agree |
 | `TestEveryDispatchedCommandIsDocumented` | `main()`'s switch matches help and completion both ways |
 | `TestTemplateIsAWorkingManifest` | `spawn init`'s template parses and validates |
+| `TestEngagementTemplateIsAWorkingManifest` | `spawn init --engagement` writes one working manifest with the pentest profile, NET_RAW and /loot |
 | `TestInitDoesNotOverwriteWithoutForce` | an edited dotfile survives a second `init` |
 | `TestInitCreatesTheWorkspace` | the mount source exists after `init` |
 | `TestTableAligns` | columns align, no trailing whitespace |
