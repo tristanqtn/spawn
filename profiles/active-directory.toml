@@ -27,6 +27,9 @@ tools = [
   "bloodhound-ce", "bloodhound-py", "neo4j",
   "responder", "mitm6", "pretender", "adidnsdump",
   "certipy", "kerbrute", "evil-winrm", "krb5", "samba",
+  # Coercion, DPAPI loot and an offline NTDS sync: the parts of the workflow that
+  # start after you already have a foothold.
+  "coercer", "donpapi", "certsync",
 ]
 
 [smoke]

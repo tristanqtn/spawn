@@ -18,6 +18,8 @@ tools = [
   "hashcat", "hashcat-utils", "pocl", "john", "thc-hydra", "ophcrack", "sshpass",
   "hashid", "hash-identifier",
   "crunch", "cewl", "maskprocessor",
+  # Not every hash arrives as a hash: archives and volumes hold them too.
+  "pdfcrack", "fcrackzip", "bruteforce-luks", "rsmangler",
   "seclists", "wordlists",
 ]
 

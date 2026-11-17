@@ -22,6 +22,9 @@ tools = [
   # service probes that are not web
   "onesixtyone", "snmpcheck", "ike-scan", "smbmap", "enum4linux",
 
+  # resolving and probing at scale
+  "shuffledns", "puredns", "dnsvalidator", "httprobe", "uncover",
+
   # watching the wire
   "tcpdump", "wireshark-cli",
 ]

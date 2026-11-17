@@ -12,6 +12,8 @@ tools = [
   "sqlmap", "nuclei", "nuclei-templates", "nikto", "whatweb", "dalfox", "arjun",
   "httpx", "katana", "subfinder", "amass", "wafw00f",
   "httpie", "zap",
+  # Crawling and screenshotting, which is most of what triage actually is.
+  "gospider", "hakrawler", "cariddi", "gowitness",
 ]
 
 [smoke]

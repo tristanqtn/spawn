@@ -11,6 +11,8 @@ tools = [
   "chisel", "ligolo-ng", "gost", "frp", "rathole",
   "sshuttle", "iodine", "proxychains-ng",
   "openssh", "pwncat",
+  # When the egress that exists is not the egress you wanted.
+  "wstunnel", "udp2raw",
 ]
 
 [smoke]
