@@ -113,3 +113,20 @@ jobs:
       - run: go build -o /usr/local/bin/spawn .
       - name: a full engagement, no Exegol
         run: bash test/engagement.sh
+
+  # Can an env run the SERVICES a tool needs, not just the tool? postgres refuses to
+  # run as root and an env runs as root, so this is the one that was never tested.
+  services:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - run: go build -o /usr/local/bin/spawn .
+      - name: postgres and neo4j inside one env
+        run: bash test/services.sh

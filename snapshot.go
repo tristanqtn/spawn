@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -55,6 +56,19 @@ func hashTree(root string) (map[string]fileState, error) {
 			// A file that vanished mid-walk is not worth failing over; a running env
 			// is allowed to be busy.
 			if os.IsNotExist(err) {
+				return nil
+			}
+			// Nor is a directory this user cannot read. An env that chowns something
+			// to another uid -- postgres refuses to run as root, so a database in an
+			// env does exactly that -- maps it to a subuid the host user cannot
+			// traverse, and before this `spawn up` failed outright with
+			// "permission denied" on a perfectly healthy env.
+			//
+			// Skipping is announced rather than silent: a path left out of the hash
+			// is a path `spawn diff` cannot report changes under, and a diff that
+			// quietly omits a subtree is worse than one that says it did.
+			if os.IsPermission(err) {
+				warnUnreadable(p)
 				return nil
 			}
 			return err
@@ -161,6 +175,13 @@ func copyDir(src, dst string) error {
 	return filepath.Walk(src, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
+				return nil
+			}
+			// Same reasoning as hashTree: a subtree owned by another uid inside the
+			// env cannot be read here, and a snapshot or fork of the rest is more
+			// useful than refusing to copy anything.
+			if os.IsPermission(err) {
+				warnUnreadable(p)
 				return nil
 			}
 			return err
@@ -312,4 +333,20 @@ func fork(env, newName string) error {
 		os.WriteFile(filepath.Join(envDir(newName), baselineFile), b, 0o600)
 	}
 	return nil
+}
+
+// warnUnreadable reports a path the host user cannot read inside an env's rootfs, once
+// per path, to stderr. It is a warning rather than an error because the env itself is
+// fine -- the uid mapping is doing its job -- but the user should know which parts of
+// the tree spawn is not accounting for.
+var unreadable sync.Map
+
+func warnUnreadable(path string) {
+	if _, seen := unreadable.LoadOrStore(path, true); seen {
+		return
+	}
+	fmt.Fprintf(os.Stderr,
+		"spawn: %s is owned by a uid this user cannot read; skipping it.\n"+
+			"       Expected if something in the env runs as its own user (postgres does).\n"+
+			"       Files under it are not included in diffs, snapshots or forks.\n", path)
 }
