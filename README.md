@@ -150,8 +150,15 @@ assumed:
     info`. That persists with a world-readable `/etc/shadow` and with a setuid
     `unix_chkpwd` copied out of the store, so it is not shadow permissions either.
 
-  That is nixpkgs' OpenSSH/PAM packaging inside a minimal environment, not something
-  spawn does, and keys are what you would use into your own lab anyway.
+  - Rebuilding openssh to fix it was tried and does not: `withPAM = false` alone
+    produces a sshd linking neither libpam nor libcrypt (nixpkgs' glibc has no
+    `crypt()`; it lives in libxcrypt), and adding `libxcrypt` so configure finds it
+    gives a sshd that genuinely links `libcrypt.so.2` -- and still refuses the
+    password. That override is therefore NOT shipped: it would drop PAM from every env
+    in exchange for nothing measurable.
+
+  Every cause that can be named from here has been eliminated, so the limitation stands
+  as a limitation: **use a key**. It is what you would use into your own lab anyway.
 
 An ssh session also starts with sshd's own `PATH`, not the profile's, so commands are
 not found until you set it -- `SPAWN_PROFILE` is exported in the container for exactly
