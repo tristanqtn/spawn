@@ -171,3 +171,4 @@ Go tests. Both run in CI.
 |---|---|
 | `test/vpn-datapath.sh` | a real payload crosses a real OpenVPN **and** WireGuard tunnel, with the kill switch sealing the non-tunnel interface |
 | `test/agent-loop.py` | 17 assertions driving MCP as an agent would: provision, run a task, inspect the diff, read the audit log, snapshot, break, restore, destroy |
+| `test/engagement.sh` | **the M5 criterion**: a full engagement on one `pentest` profile against a lab it builds — recon, enumeration, a credential attack over ssh, access, loot, a crack with hashcat 8, a pivot to a host the egress policy proves unreachable, and the report |

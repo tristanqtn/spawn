@@ -15,7 +15,7 @@ description = "hashes and wordlists: hashcat 8, john, hydra, seclists"
 note = "hashcat cracks on the CPU via pocl; pass the GPU devices through for real speed"
 
 tools = [
-  "hashcat", "hashcat-utils", "pocl", "john", "thc-hydra", "ophcrack",
+  "hashcat", "hashcat-utils", "pocl", "john", "thc-hydra", "ophcrack", "sshpass",
   "hashid", "hash-identifier",
   "crunch", "cewl", "maskprocessor",
   "seclists", "wordlists",
@@ -42,5 +42,7 @@ case "$(cat /tmp/smoke.out)" in *:abc) echo "v8 cracked md5 on the CPU" ;; *) ca
 "ophcrack" = "command -v ophcrack"
 "pocl" = 'test -f "$SPAWN_PROFILE/etc/OpenCL/vendors/pocl.icd"'
 "seclists" = 'test -d "$SPAWN_PROFILE/share/wordlists/seclists"'
+# A recovered password is useless without a non-interactive way to use it.
+"sshpass" = "command -v sshpass"
 "thc-hydra" = "command -v hydra"
 "wordlists" = 'test -d "$SPAWN_PROFILE/share/wordlists"'

@@ -95,3 +95,21 @@ jobs:
       - run: go build -o /usr/local/bin/spawn .
       - name: ${{ matrix.suite }} — every tool runs
         run: spawn smoke ${{ matrix.suite }}
+
+  # M5's first exit criterion, as far as CI can carry it: not "every tool runs" but
+  # "the workflow an engagement is made of works". Recon through report, against a
+  # three-container lab this builds itself, on one profile, with egress denied.
+  engagement:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+      - run: go build -o /usr/local/bin/spawn .
+      - name: a full engagement, no Exegol
+        run: bash test/engagement.sh
