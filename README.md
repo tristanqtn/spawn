@@ -127,6 +127,26 @@ says so in a `note`, printed by `spawn profiles` and `spawn check`. A profile ne
 grants a capability — privileges stay visible in the manifest where you can review
 them.
 
+## Running a service inside an env
+
+Two things are worth knowing before you put a daemon in one, both measured rather than
+assumed:
+
+- **A daemon needs `podman exec -d`.** `podman exec` reaps its process group, so a
+  listener started with `&` dies with the exec that started it. `hooks.post_start` is
+  the declarative way to start one.
+- **sshd works with keys, not with passwords.** Public-key auth succeeds
+  (`Accepted publickey for root`). Password auth against `/etc/shadow` does not: sshd
+  reads the file -- its account-expiry check works -- and still rejects a correct
+  password, verified in isolation over loopback with no network or egress policy
+  involved. The hash itself is fine; regenerating it from its stored salt reproduces it
+  byte for byte. It is nixpkgs' OpenSSH without PAM, not spawn, and keys are what you
+  would use into your own lab anyway.
+
+An ssh session also starts with sshd's own `PATH`, not the profile's, so commands are
+not found until you set it -- `SPAWN_PROFILE` is exported in the container for exactly
+this kind of thing.
+
 ## Does every tool actually run?
 
 Resolving in nixpkgs and *working in a container* are different claims, and the gap is
