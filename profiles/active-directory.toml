@@ -4,21 +4,20 @@
 # python3Packages.impacket (not impacket), certipy (not certipy-ad), samba for
 # smbclient.
 #
-# BloodHound CE is the standing example of a tool that is PACKAGED but does not RUN on
-# its own, and test/services.sh now measures exactly how far it gets instead of leaving
-# that as a caveat:
+# BloodHound CE was the standing example of a tool that is PACKAGED but does not RUN
+# on its own. It runs now, and test/services.sh proves the whole platform in one env:
 #
-#   postgres runs in an env (as its own uid, via setpriv -- it refuses to run as root)
-#   neo4j runs in an env (from a writable NEO4J_HOME copy)
-#   bloodhound-ce connects to postgres and runs every SQL migration, v6.1.0 to v8.3.0
-#   and then stops: it calls db.indexes, a procedure removed after Neo4j 4.4, and the
-#   pin has neo4j 2026.10.2. There is no 4.x anywhere in the pin.
+#   postgres (as its own uid, via setpriv -- it refuses to run as root)
+#   neo4j 4.4 (spawn's own, see pkgs/neo4j.nix: the pin's 2026.10.2 dropped db.indexes,
+#     which bloodhound-ce calls, and 4.4 needs Java 11 -- on 17 it dies reaching
+#     through strong encapsulation into java.nio)
+#   bloodhound-ce: every SQL migration, the graph migration, and an API answering on
+#     8080
 #
-# So the blocker is a version, not plumbing, and the fix is a spawn-maintained neo4j
-# 4.4 in pkgs/ -- the same seam hashcat uses. Until then the smoke entry asserts the
-# binary and nothing more, because claiming more would be a lie.
+# The smoke entry below still asserts only the binary, because a smoke check builds one
+# env and runs one command -- starting three services belongs in services.sh.
 description = "AD attack path: netexec, impacket, BloodHound CE, certipy"
-note = "BloodHound CE needs postgres AND neo4j; it runs its migrations and then stops on neo4j 2026.x (it needs 4.4). See test/services.sh."
+note = "BloodHound CE needs postgres and neo4j started alongside it; test/services.sh is a working recipe (hooks.post_start, and postgres needs its own uid)."
 
 # Scanning and cracking come from the shared suites rather than being repeated here.
 includes = ["recon", "creds"]

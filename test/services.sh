@@ -3,8 +3,8 @@
 #
 # M5's third exit criterion is that "packaged" and "working in a container" are
 # distinguished, with BloodHound CE as the example because it needs postgres and neo4j
-# alongside it. Saying that in a comment is cheap. This proves the services themselves
-# run inside one env, and records exactly where BloodHound CE still stops.
+# alongside it. Saying that in a comment is cheap. This runs the whole platform: both
+# services and the API, in one env, and it answers.
 #
 # The interesting one is postgres: it REFUSES to run as root, and an env runs as root.
 # setpriv drops to another uid without needing a setuid binary, because we are already
@@ -105,22 +105,38 @@ spawn up "$ENV" bash -c '
   # The stock neo4j.conf already serves bolt on 127.0.0.1:7687. Appending those
   # settings again is not harmless -- neo4j refuses to start with
   # "server.http.enabled declared multiple times".
-  neo4j-admin dbms set-initial-password neo4jpassword >/dev/null 2>&1 || true
+  # 4.4 wants `set-initial-password`; 5.x moved it under `dbms`. spawn carries 4.4
+  # (pkgs/neo4j.nix) because BloodHound CE needs it, but try both so this still works
+  # if that override is ever dropped.
+  neo4j-admin set-initial-password neo4jpassword >/dev/null 2>&1 ||
+    neo4j-admin dbms set-initial-password neo4jpassword >/dev/null 2>&1 || true
   neo4j start >/dev/null 2>&1
 ' >/dev/null 2>&1
 
 bolt=""
-for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
-  bolt=$(spawn up "$ENV" bash -c 'export NEO4J_HOME=/var/lib/neo4j; timeout 20 cypher-shell -a bolt://127.0.0.1:7687 -u neo4j -p neo4jpassword "RETURN 1 AS ok;" 2>/dev/null | tail -1' 2>/dev/null | tr -d ' \r')
-  [ "$bolt" = 1 ] && break
+# Generous on purpose: neo4j 4.4 on JDK 11 took around a minute to report
+# "Bolt enabled on localhost:7687", and a window that expires first looks exactly like
+# a server that never started.
+for _ in $(seq 1 18); do
+  # neo4j's own words, out of its own log. Two other checks were tried here and both
+  # measured the harness rather than the server: cypher-shell returns nothing under
+  # `podman exec` with no tty, and a python socket probe nested three levels of quoting
+  # deep returned nothing either. A grep for the line neo4j prints when bolt is up has
+  # no such problem, and the functional proof follows anyway -- BloodHound CE completes
+  # a graph migration against this database a few lines below, which it cannot do
+  # against one that is not serving.
+  bolt=$(spawn up "$ENV" bash -c 'grep -c "Bolt enabled" /var/lib/neo4j/logs/neo4j.log 2>/dev/null' 2>/dev/null | tr -d ' ')
+  case "$bolt" in ""|0) ;; *) break ;; esac
   sleep 5
 done
-[ "$bolt" = 1 ] && ok "neo4j runs in an env and answers over bolt" \
-  || bad "neo4j did not answer over bolt (got '$bolt')"
+case "$bolt" in
+  ""|0) bad "neo4j never reported bolt coming up" ;;
+  *)    ok "neo4j runs in an env and reports bolt enabled" ;;
+esac
 
-# --- BloodHound CE, as far as it goes ---------------------------------------------
-# This is the honest part. It gets further than anyone had checked -- all the way
-# through its SQL migrations -- and then stops on a Neo4j version mismatch.
+# --- BloodHound CE ----------------------------------------------------------------
+# The whole point of the file. Against the pin's neo4j 2026.10.2 this stopped dead on
+# db.indexes; with spawn's own neo4j 4.4 it runs.
 printf '\n== BloodHound CE against those services\n'
 spawn up "$ENV" bash -c '
   mkdir -p /etc/bhapi /opt/bhapi/work /opt/bhapi/collectors /var/log
@@ -151,21 +167,42 @@ JSON
 # neo4j error, and a 3-line window misses it.
 bh=$(spawn up "$ENV" bash -c 'export NEO4J_HOME=/var/lib/neo4j; timeout 40 bloodhound-ce -configfile /etc/bhapi/bhapi.json 2>&1 | tail -12' 2>/dev/null)
 case "$bh" in
-  *"No new SQL migrations"*|*"Executing SQL migrations"*)
-    ok "BloodHound CE connects to postgres and runs its migrations" ;;
+  # post-processing or a started daemon is stronger evidence than a migration line, and
+  # on a second run there are no NEW migrations to print.
+  *"No new SQL migrations"*|*"Executing SQL migrations"*|*post-processing*|*"Starting daemon"*)
+    ok "BloodHound CE connects to postgres and gets through its migrations" ;;
   *) bad "BloodHound CE did not reach its migrations: $(printf '%s' "$bh" | tr '\n' ' ' | cut -c1-200)" ;;
 esac
 
-# The known blocker, asserted as the known blocker. If this ever STOPS matching, the
-# incompatibility is gone and the note in profiles/active-directory.toml is stale --
-# which is worth being told about.
+# And it has to get PAST the graph migration, which is the only reason spawn carries
+# neo4j 4.4 at all (pkgs/neo4j.nix). Against the pin's neo4j 2026.10.2 this is exactly
+# where it died: db.indexes was removed after 4.4, so bloodhound-ce reported
+# ProcedureNotFound and exited. Seeing that again means the override stopped applying.
 case "$bh" in
   *db.indexes*|*ProcedureNotFound*)
-    ok "and stops on the documented Neo4j 4.4 incompatibility, as expected"
-    note "bloodhound-ce 8.3.1 calls db.indexes, removed after Neo4j 4.4; the pin has 2026.10.2" ;;
-  *"Started server"*|*"Server started"*)
-    bad "BloodHound CE now STARTS: the Neo4j note is stale, update it" ;;
-  *) note "unrecognised outcome: $(printf '%s' "$bh" | tr '\n' ' ' | cut -c1-200)" ;;
+    bad "the neo4j 4.4 override is not in effect: db.indexes is missing again" ;;
+  *)
+    ok "it gets past the graph migration that neo4j 4.4 is carried for" ;;
+esac
+
+# Then started for real and asked whether it answers, which is the entire difference
+# between "packaged" and "working in a container".
+P=$(podman inspect "spawn-$ENV" -f '{{index .Config.Labels "spawn.profile"}}')
+podman exec -d -e NEO4J_HOME=/var/lib/neo4j "spawn-$ENV" \
+  "$P/bin/bloodhound-ce" -configfile /etc/bhapi/bhapi.json >/dev/null 2>&1
+api=""
+for _ in $(seq 1 15); do
+  api=$(spawn up "$ENV" bash -c 'curl -s -o /dev/null -w "%{http_code}" --max-time 6 http://127.0.0.1:8080/api/version' 2>/dev/null | tr -d ' \r')
+  case "$api" in 2*|3*|4*) break ;; esac
+  sleep 5
+done
+case "$api" in
+  2*|3*|4*)
+    ok "the BloodHound CE API answers on 8080 (HTTP $api)"
+    note "admin / Bloodhound123! -- a lab password in a disposable env" ;;
+  *)
+    bad "the API never answered (got '$api')"
+    note "$(spawn up "$ENV" bash -c 'tail -4 /var/log/bhapi.log' 2>/dev/null | tr '\n' ' ' | cut -c1-240)" ;;
 esac
 
 printf '\n'
