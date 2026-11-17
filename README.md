@@ -136,12 +136,22 @@ assumed:
   listener started with `&` dies with the exec that started it. `hooks.post_start` is
   the declarative way to start one.
 - **sshd works with keys, not with passwords.** Public-key auth succeeds
-  (`Accepted publickey for root`). Password auth against `/etc/shadow` does not: sshd
-  reads the file -- its account-expiry check works -- and still rejects a correct
-  password, verified in isolation over loopback with no network or egress policy
-  involved. The hash itself is fine; regenerating it from its stored salt reproduces it
-  byte for byte. It is nixpkgs' OpenSSH without PAM, not spawn, and keys are what you
-  would use into your own lab anyway.
+  (`Accepted publickey for root`). Password auth does not, and the reason took some
+  finding, so here it is in full rather than as a shrug:
+
+  - The hash is not the problem. `crypt()` from the env's libcrypt computes the `$6$`
+    entry and matches it exactly, and sshd reads `/etc/shadow` fine -- its
+    account-expiry check runs on the real entry.
+  - With `UsePAM no`, nixpkgs' sshd has nothing to compare a password *with*: it links
+    `libpam.so.0` and **not** libcrypt, so OpenSSH's own crypt path is not there.
+  - With `UsePAM yes` and a `/etc/pam.d/sshd` naming `pam_unix.so` by absolute path
+    (PAM's compiled-in module directory does not exist in an env), PAM loads and runs
+    -- and `pam_unix` returns `Authentication service cannot retrieve authentication
+    info`. That persists with a world-readable `/etc/shadow` and with a setuid
+    `unix_chkpwd` copied out of the store, so it is not shadow permissions either.
+
+  That is nixpkgs' OpenSSH/PAM packaging inside a minimal environment, not something
+  spawn does, and keys are what you would use into your own lab anyway.
 
 An ssh session also starts with sshd's own `PATH`, not the profile's, so commands are
 not found until you set it -- `SPAWN_PROFILE` is exported in the container for exactly
